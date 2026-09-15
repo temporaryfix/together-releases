@@ -480,6 +480,64 @@ input {
   margin: 0.25rem 0;
 }
 
+.invited-lead {
+  display: grid;
+  justify-items: center;
+  gap: 0.7rem;
+  width: 100%;
+}
+
+.btn-large {
+  min-height: 52px;
+  padding: 0 1.8em;
+  font-size: var(--step-1);
+}
+
+.btn-large .icon {
+  width: 22px;
+  height: 22px;
+}
+
+.invited-note {
+  max-width: 38ch;
+  color: var(--mist);
+  font-size: var(--step--1);
+  text-wrap: pretty;
+}
+
+/* The other way in, folded away until it's wanted. */
+.own-copy {
+  width: 100%;
+  margin-top: 0.3rem;
+  padding-top: 1.2rem;
+  border-top: 1px solid var(--haze);
+}
+
+.own-copy-summary {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--mist);
+  font-size: var(--step--1);
+  text-decoration: underline;
+  text-decoration-color: rgb(165 158 184 / 0.4);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.own-copy-summary::-webkit-details-marker {
+  display: none;
+}
+
+.own-copy-summary:hover {
+  color: var(--paper);
+}
+
+.own-copy[open] .own-copy-summary {
+  margin-bottom: 0.9rem;
+}
+
 .dropzone-compact {
   width: 100%;
   min-height: 170px;
@@ -623,6 +681,53 @@ input {
   letter-spacing: 0.02em;
 }
 
+.person-face {
+  position: relative;
+  display: grid;
+  flex: none;
+}
+
+/* A quiet tick that settles onto the avatar when someone says they're ready. */
+.person-mark {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  width: 14px;
+  height: 14px;
+  padding: 1.5px;
+  border-radius: 50%;
+  background: var(--good);
+  color: #10231c;
+  opacity: 0;
+  transform: scale(0.5);
+  transition: opacity 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+}
+
+.person[data-state="ready"] .person-mark {
+  opacity: 1;
+  transform: none;
+}
+
+.person[data-state="ready"] .avatar {
+  box-shadow: 0 0 0 2px rgb(116 217 174 / 0.55);
+}
+
+/* Someone the room is waiting for: a warm ring that breathes while they catch up. */
+.person[data-state="stalled"] .avatar {
+  box-shadow: 0 0 0 2px rgb(242 189 85 / 0.6);
+  animation: breathe 2s ease-in-out infinite;
+}
+
+.person[data-state="stalled"] .badge-dot {
+  animation: breathe 2s ease-in-out infinite;
+}
+
+@keyframes breathe {
+  50% {
+    opacity: 0.45;
+  }
+}
+
 .person-text {
   display: grid;
   line-height: 1.15;
@@ -715,6 +820,52 @@ input {
 .time-sep,
 [data-duration] {
   color: var(--mist);
+}
+
+/* Ready check */
+
+.ready {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  margin-left: 0.35rem;
+  animation: arrive 0.3s var(--ease-out);
+}
+
+.btn-ready {
+  min-height: 34px;
+  padding: 0 0.95em;
+  font-size: var(--step--1);
+}
+
+.btn-ready .icon {
+  width: 17px;
+  height: 17px;
+  opacity: 0.45;
+  transition: opacity 0.2s var(--ease-out);
+}
+
+.btn-ready.is-ready {
+  background: rgb(116 217 174 / 0.18);
+  color: var(--good);
+}
+
+.btn-ready.is-ready:hover {
+  background: rgb(116 217 174 / 0.26);
+}
+
+.btn-ready.is-ready .icon {
+  opacity: 1;
+}
+
+.ready-note {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--mist);
+  font-size: var(--step--1);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .spacer {
@@ -917,6 +1068,19 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   pointer-events: none;
 }
 
+/* A countdown only has to make a number readable, so the film stays visible under it. */
+.overlay[data-kind="countdown"] {
+  background: rgb(21 19 29 / 0.5);
+  backdrop-filter: blur(4px);
+  transition: background-color 0.5s var(--ease-out), backdrop-filter 0.5s var(--ease-out);
+  pointer-events: none;
+}
+
+.overlay[data-kind="countdown"].is-clear {
+  background: rgb(21 19 29 / 0);
+  backdrop-filter: blur(0);
+}
+
 .overlay.is-clear .overlay-card {
   pointer-events: auto;
 }
@@ -938,6 +1102,23 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   backdrop-filter: blur(24px);
   box-shadow: 0 20px 60px rgb(0 0 0 / 0.45);
   text-align: center;
+}
+
+/* For states that interrupt a film rather than open one: the same card, said more softly. */
+.overlay-card.is-quiet {
+  max-width: 420px;
+  gap: 0.55rem;
+  padding: 1.35rem 1.7rem;
+}
+
+.overlay-card.is-quiet .overlay-title {
+  font-size: var(--step-2);
+  text-wrap: balance;
+}
+
+.overlay-card.is-quiet .overlay-mark {
+  width: 56px;
+  height: 36px;
 }
 
 .overlay-title {
@@ -989,6 +1170,70 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     transform: scale(0.82);
     opacity: 0.6;
   }
+}
+
+/* Countdown: one number a second, each landing rather than ticking over, then a ring opening
+   out of the last beat as the film starts. */
+
+.countdown {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 0.5rem;
+  text-align: center;
+}
+
+/* Whatever frame the film is paused on, the number has to read against it. */
+.countdown::before {
+  content: "";
+  position: absolute;
+  inset: -45% -60%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgb(21 19 29 / 0.72), rgb(21 19 29 / 0));
+}
+
+.countdown-number {
+  font: 700 clamp(4.5rem, 17vw, 8rem) / 1 var(--font-display);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.05em;
+  text-shadow: 0 0 70px rgb(255 230 207 / 0.4);
+  animation: count-in 0.6s var(--ease-out) both;
+}
+
+@keyframes count-in {
+  from {
+    opacity: 0;
+    transform: scale(1.22);
+  }
+}
+
+.countdown-caption {
+  color: var(--mist);
+  font-size: var(--step-1);
+}
+
+.countdown-ring {
+  width: clamp(4.5rem, 17vw, 8rem);
+  aspect-ratio: 1;
+  border: 2px solid var(--glow);
+  border-radius: 50%;
+  animation: go-ring 0.5s var(--ease-out) forwards;
+}
+
+@keyframes go-ring {
+  from {
+    opacity: 0.6;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.6);
+  }
+}
+
+.countdown.is-resuming {
+  gap: 0.9rem;
 }
 
 .join-playback {
@@ -1093,6 +1338,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   }
 
   .person-text,
+  .ready-note,
   .topbar .btn-primary span {
     display: none;
   }

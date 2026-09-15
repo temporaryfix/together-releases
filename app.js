@@ -1,7 +1,8 @@
 // together in the browser: landing, invite and room screens around a wasm `Session`.
 
 import init, { Session, formatTime, parseInvite } from "./pkg/together_web.js";
-import { MediaLoadError, fileSource, pickFile } from "./media.js";
+import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
+import { canStream } from "./stream.js";
 import { Toasts, avatar, copyText, h, icon, paintRange, prefs, renderBadge, setIcon } from "./ui.js";
 
 const wasm = init();
@@ -192,23 +193,30 @@ inviteInput.addEventListener("input", () => {
 // Invited
 
 const invitedName = new NameField($("[data-name-slot]", screens.invited), "Joining as");
-let pendingJoinFile;
+let pendingJoin;
 
+/** Join the room, streaming the video from it unless `file` is our own copy. */
 function joinWith(file) {
   setError(screens.invited);
   const invite = inviteFromHash();
   if (!invite) return route();
   const name = invitedName.require();
   if (!name) {
-    pendingJoinFile = file;
+    pendingJoin = () => joinWith(file);
     return;
   }
-  pendingJoinFile = undefined;
-  room.open({ source: fileSource(file), name, invite, from: screens.invited });
+  pendingJoin = undefined;
+  room.open({ source: file && fileSource(file), stream: !file, name, invite, from: screens.invited });
 }
 
-invitedName.onCommit = () => pendingJoinFile && joinWith(pendingJoinFile);
+invitedName.onCommit = () => pendingJoin?.();
 wireDropzone(screens.invited, joinWith);
+$("[data-stream]", screens.invited).addEventListener("click", () => joinWith());
+// Nothing to stream through without a Service Worker, so lead with bringing your own copy.
+if (!canStream()) {
+  $("[data-stream-lead]", screens.invited).hidden = true;
+  $("[data-own-copy]", screens.invited).open = true;
+}
 $("[data-home]").addEventListener("click", (e) => {
   e.preventDefault();
   history.pushState(null, "", location.pathname + location.search);
@@ -223,6 +231,8 @@ const SEEK_STEP = 5;
 const SLOW_CONNECT_MS = 12000;
 /** A joiner hears about everyone already in the room at once; the strip shows them, no toasts. */
 const ARRIVAL_QUIET_MS = 5000;
+/** How long the countdown's last beat stays on screen after playback starts. */
+const GO_MS = 500;
 
 class Room {
   constructor(root) {
@@ -241,6 +251,10 @@ class Room {
     this.inviteButton = $("[data-invite]", root);
     this.popover = $("[data-invite-popover]", root);
     this.mismatch = $("[data-mismatch]", root);
+    this.readyControl = $("[data-ready-control]", root);
+    this.readyButton = $("[data-ready]", root);
+    this.readyLabel = $("[data-ready-label]", root);
+    this.readyNote = $("[data-ready-note]", root);
     this.toasts = new Toasts($("[data-toasts]", root));
     this.session = undefined;
     this.bind();
@@ -251,24 +265,26 @@ class Room {
   }
 
   /** Enter a room: load the media, then host or join. Ignored while a room is open or opening. */
-  async open({ source, name, invite, from }) {
+  async open({ source, stream, name, invite, from }) {
     if (this.active) return;
     this.active = true;
     this.reset();
-    this.source = source;
     this.isHost = !invite;
     this.phase = "starting";
-    $("[data-title]", this.root).textContent = source.title;
-    document.title = `${source.title} · together`;
+    // Streaming joiners don't know what they're watching until someone in the room offers it.
+    this.awaitingFilm = Boolean(stream);
     setBusy(from, true);
 
-    try {
-      await source.attach(this.video);
-    } catch (error) {
-      setBusy(from, false);
-      setError(from, error instanceof MediaLoadError ? error.message : "That file couldn’t be opened.");
-      this.close();
-      return;
+    if (source) {
+      this.show(source);
+      try {
+        await source.attach(this.video);
+      } catch (error) {
+        setBusy(from, false);
+        setError(from, error instanceof MediaLoadError ? error.message : "That file couldn’t be opened.");
+        this.close();
+        return;
+      }
     }
     setBusy(from, false);
     showScreen("room");
@@ -280,9 +296,10 @@ class Room {
       const options = {
         video: this.video,
         name,
-        title: source.title,
-        duration: this.video.duration,
-        size: source.size,
+        stream: Boolean(stream),
+        title: source?.title,
+        duration: source && this.video.duration,
+        size: source?.size,
       };
       this.session = invite ? await Session.join(invite, options) : await Session.host(options);
     } catch (error) {
@@ -305,7 +322,8 @@ class Room {
     this.wake();
   }
 
-  async leave() {
+  /** Leave the room. `keepInvite` goes back to the invite screen rather than the start. */
+  async leave({ keepInvite = false } = {}) {
     const session = this.session;
     this.session = undefined;
     if (session) {
@@ -314,8 +332,29 @@ class Room {
       session.free();
     }
     this.close();
-    history.pushState(null, "", location.pathname + location.search);
+    if (!keepInvite) history.pushState(null, "", location.pathname + location.search);
     route();
+  }
+
+  /** Take `source` as the room's video. */
+  show(source) {
+    this.source = source;
+    $("[data-title]", this.root).textContent = source.title;
+    document.title = `${source.title} · together`;
+  }
+
+  /** Someone in the room offered a copy: play it as it arrives. */
+  async startStreaming(event) {
+    if (!this.session || this.source) return;
+    this.show(streamSource(this.session, event));
+    this.awaitingFilm = false;
+    this.renderOverlay();
+    try {
+      await this.source.attach(this.video);
+    } catch (error) {
+      this.streamError = error.message;
+    }
+    this.renderOverlay();
   }
 
   /** Tear down everything local. */
@@ -335,8 +374,14 @@ class Room {
 
   reset() {
     this.phase = "starting";
+    this.source = undefined;
+    this.awaitingFilm = false;
+    this.streamError = undefined;
     this.peers = new Map();
     this.hadPeers = false;
+    this.ready = undefined;
+    this.waiting = undefined;
+    this.starting = undefined;
     this.blocked = false;
     this.stopped = undefined;
     this.overlayKey = undefined;
@@ -344,6 +389,7 @@ class Room {
     this.people.replaceChildren();
     this.toasts.clear();
     this.mismatch.hidden = true;
+    this.readyControl.hidden = true;
     this.inviteButton.disabled = true;
     this.stage.classList.remove("is-idle");
   }
@@ -357,7 +403,13 @@ class Room {
         this.mySync = event.sync;
         this.peers = new Map(event.peers.map((peer) => [peer.who.id, peer]));
         if (this.peers.size > 0) this.hadPeers = true;
+        this.ready = event.ready;
+        this.waiting = event.waiting;
+        // A countdown someone interrupted is over; one still in flight keeps its instant.
+        if (event.waiting.type === "starting") this.startCountdown(event.waiting);
+        else if (event.paused) this.starting = undefined;
         this.renderPeople();
+        this.renderReady();
         break;
       case "peerJoined":
         this.hadPeers = true;
@@ -365,9 +417,7 @@ class Room {
           this.peers.set(event.who.id, { who: event.who, sync: { level: "unknown", label: "syncing…", detail: "Measuring sync" } });
         }
         this.renderPeople();
-        if (this.isHost || performance.now() - this.openedAt > ARRIVAL_QUIET_MS) {
-          this.toasts.show(event.message, { person: event.who });
-        }
+        if (this.settled()) this.toasts.show(event.message, { person: event.who });
         break;
       case "peerLeft":
         this.peers.delete(event.who.id);
@@ -379,6 +429,25 @@ class Room {
         break;
       case "mediaMismatch":
         this.showMismatch(event);
+        break;
+      case "ready":
+        // Everyone's answer arrives at once when you join; the rail already shows them.
+        if (!event.local && this.settled()) {
+          this.toasts.show(event.message, { person: event.who, key: `ready:${event.who.id}` });
+        }
+        break;
+      case "holding":
+        // Say it the moment the room decides; the next status confirms or clears it.
+        this.waiting = { type: "stalled", who: [event.who.name], local: event.local, message: event.message };
+        break;
+      case "starting":
+        this.startCountdown(event);
+        break;
+      case "gaveUp":
+        this.toasts.show(event.message, { icon: "i-alert", key: `gaveUp:${event.who.id}` });
+        break;
+      case "streaming":
+        this.startStreaming(event);
         break;
       case "playback":
         this.blocked = event.blocked;
@@ -395,7 +464,10 @@ class Room {
   renderPeople() {
     // Waiting on the autoplay policy isn't being out of sync; don't show a scary number.
     const mine = this.blocked ? { level: "unknown", label: "needs a click", detail: "Waiting for a click to start playback" } : this.mySync;
-    const rows = this.me ? [{ who: { ...this.me, name: "You" }, sync: mine, you: true }] : [];
+    const held = this.waiting?.type === "stalled" && this.waiting.local;
+    const rows = this.me
+      ? [{ who: { ...this.me, name: "You" }, sync: mine, ready: this.ready?.mine === true, stalled: held, you: true }]
+      : [];
     rows.push(...this.peers.values());
     const existing = new Map([...this.people.children].map((li) => [li.dataset.id, li]));
     const keep = new Set();
@@ -408,17 +480,67 @@ class Room {
         li = h(
           "li",
           { class: "person", "data-id": id },
-          avatar(row.who),
+          h("span", { class: "person-face" }, avatar(row.who), icon("i-check", "person-mark")),
           h("span", { class: "person-text" }, h("span", { class: "person-name" }, row.who.name), badge),
         );
       }
       if (this.people.children[index] !== li) this.people.insertBefore(li, this.people.children[index] ?? null);
       const sync = row.sync ?? { level: "unknown", label: "syncing…", detail: "Measuring sync" };
       renderBadge($(".badge", li), sync);
-      li.title = `${row.who.name}: ${sync.detail}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}`;
+      // Being stuck is the more urgent of the two, and a stalled player isn't waiting to start.
+      const state = row.stalled ? "stalled" : row.ready ? "ready" : "";
+      if (li.dataset.state !== state) li.dataset.state = state;
+      const aside = row.ready && !row.stalled ? " · ready to start" : "";
+      li.title = `${row.who.name}: ${sync.detail}${aside}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}`;
       li.setAttribute("aria-label", li.title);
     });
     for (const [id, li] of existing) if (!keep.has(id)) li.remove();
+  }
+
+  /** Whether we've been here long enough for what happens to be news rather than arrival. */
+  settled() {
+    return this.isHost || performance.now() - this.openedAt > ARRIVAL_QUIET_MS;
+  }
+
+  /** The ready control: who has said they're ready, and the way to say it yourself. */
+  renderReady() {
+    const ready = this.ready;
+    this.readyControl.hidden = !ready?.open;
+    if (!ready?.open) return;
+    const mine = ready.mine;
+    this.readyButton.setAttribute("aria-pressed", String(mine));
+    this.readyButton.classList.toggle("is-ready", mine);
+    this.readyButton.title = mine ? "Ready — press R to take it back" : "Ready (R)";
+    const label = mine ? "Ready" : "I’m ready";
+    if (this.readyLabel.textContent !== label) this.readyLabel.textContent = label;
+    const note = [ready.label, this.waiting?.type === "ready" ? this.waiting.message : ""].filter(Boolean).join(" · ");
+    if (this.readyNote.textContent !== note) this.readyNote.textContent = note;
+  }
+
+  toggleReady() {
+    if (!this.session || !this.ready?.open) return;
+    this.session.setReady(!this.ready.mine);
+    // Don't wait for the next status to acknowledge the press.
+    this.ready = { ...this.ready, mine: !this.ready.mine };
+    this.renderReady();
+    this.wake();
+  }
+
+  /** Follow a countdown by the instant it lands on, not by a timer started when we heard. */
+  startCountdown({ startsAt, resuming, message }) {
+    this.starting = { startsAt, resuming, message };
+    this.renderOverlay();
+  }
+
+  /** Where the countdown is now: `undefined` once it has landed and the flourish is done. */
+  countdown() {
+    if (!this.starting || !this.session) return undefined;
+    const left = this.starting.startsAt - this.session.clockMs();
+    if (left < -GO_MS) {
+      this.starting = undefined;
+      return undefined;
+    }
+    return { ...this.starting, left, tick: Math.max(0, Math.ceil(left / 1000)) };
   }
 
   showMismatch(event) {
@@ -433,15 +555,17 @@ class Room {
 
   renderOverlay() {
     const state = this.overlayState();
-    const key = state && `${state.kind}:${state.slow ?? ""}:${state.title ?? ""}`;
+    const key = state && `${state.kind}:${state.slow ?? ""}:${state.title ?? ""}:${state.tick ?? ""}`;
     if (key === this.overlayKey) return;
     this.overlayKey = key;
     if (!state) {
       this.overlay.hidden = true;
+      this.overlay.removeAttribute("data-kind");
       this.overlay.replaceChildren();
       return;
     }
     this.overlay.hidden = false;
+    this.overlay.dataset.kind = state.kind;
     this.overlay.classList.toggle("is-clear", state.clear === true);
     this.overlay.replaceChildren(state.render());
   }
@@ -485,7 +609,23 @@ class Room {
           ),
       };
     }
-    if (this.phase !== "live" || this.peers.size > 0) return undefined;
+    if (this.streamError) {
+      return {
+        kind: "streamError",
+        render: () =>
+          card({
+            mark: markLonely(),
+            title: "Couldn’t play the room’s copy",
+            text: `${this.streamError} Joining with your own copy of the video still works.`,
+            action: h(
+              "button",
+              { class: "btn btn-primary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
+              "Use my own copy",
+            ),
+          }),
+      };
+    }
+    if (this.phase !== "live") return undefined;
     if (!this.isHost && !this.hadPeers) {
       const slow = performance.now() - this.openedAt >= SLOW_CONNECT_MS;
       return {
@@ -501,6 +641,67 @@ class Room {
           }),
       };
     }
+    if (this.awaitingFilm) {
+      // Only peers who can serve the film advertise it, and a browser never can.
+      const slow = performance.now() - this.openedAt >= SLOW_CONNECT_MS;
+      return {
+        kind: "waiting-for-film",
+        slow,
+        render: () =>
+          card({
+            mark: markPulse(),
+            title: slow ? "Nobody here has shared the video" : "Getting the video…",
+            text: slow
+              ? "It streams from whoever started the room, so they need to still have together open."
+              : "It streams straight from your friends. There’s nothing to download first.",
+            action: slow
+              ? h(
+                  "button",
+                  { class: "btn btn-secondary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
+                  "Use my own copy",
+                )
+              : undefined,
+          }),
+      };
+    }
+    const countdown = this.countdown();
+    if (countdown) {
+      const { tick, resuming, message } = countdown;
+      return {
+        kind: "countdown",
+        // Each second is its own element, so the number lands rather than ticking over.
+        tick: resuming ? "resuming" : tick,
+        // Nothing dims the first frame of the film.
+        clear: resuming || tick === 0,
+        render: () =>
+          resuming
+            ? h("div", { class: "countdown is-resuming" }, markPulse(), h("p", { class: "countdown-caption" }, message))
+            : tick === 0
+              // The film is the payoff; all that is left is the ring opening out of the last beat.
+              ? h("div", { class: "countdown is-go" }, h("span", { class: "countdown-ring" }))
+              : h(
+                  "div",
+                  { class: "countdown" },
+                  h("span", { class: "countdown-number" }, String(tick)),
+                  h("p", { class: "countdown-caption" }, message),
+                ),
+      };
+    }
+    if (this.waiting?.type === "stalled") {
+      const title = this.waiting.message;
+      return {
+        kind: "holding",
+        title,
+        render: () =>
+          card({
+            quiet: true,
+            mark: markPulse(),
+            title,
+            text: "Nobody has to do anything: playback picks up again by itself.",
+          }),
+      };
+    }
+    if (this.peers.size > 0) return undefined;
     if (!this.video.paused) return undefined;
     const title = this.hadPeers ? "Everyone else left" : "Waiting for friends";
     return {
@@ -575,6 +776,7 @@ class Room {
       this.fullscreen.title = on ? "Exit full screen (F)" : "Full screen (F)";
     });
 
+    this.readyButton.addEventListener("click", () => this.toggleReady());
     $("[data-leave]", this.root).addEventListener("click", () => this.leave());
     $("[data-mismatch-close]", this.root).addEventListener("click", () => {
       this.mismatch.hidden = true;
@@ -599,7 +801,11 @@ class Room {
     document.addEventListener("keydown", (e) => this.onKey(e));
 
     const frame = () => {
-      if (this.isOpen) this.renderTime();
+      if (this.isOpen) {
+        this.renderTime();
+        // A countdown is a deadline on the room clock, so it is redrawn from the clock.
+        if (this.starting) this.renderOverlay();
+      }
       requestAnimationFrame(frame);
     };
     requestAnimationFrame(frame);
@@ -681,6 +887,10 @@ class Room {
         this.video.muted = !this.video.muted;
         this.wake();
         break;
+      // The same key the terminal uses.
+      case "r":
+        this.toggleReady();
+        break;
     }
   }
 
@@ -727,10 +937,10 @@ class Room {
   }
 }
 
-function card({ mark, title, text, action }) {
+function card({ mark, title, text, action, quiet = false }) {
   return h(
     "div",
-    { class: "overlay-card" },
+    { class: quiet ? "overlay-card is-quiet" : "overlay-card" },
     mark,
     h("p", { class: "overlay-title" }, title),
     h("p", { class: "overlay-text" }, text),
@@ -779,7 +989,8 @@ const room = new Room(screens.room);
 // Routing: an invite in the URL goes straight to joining.
 
 function route() {
-  if (room.isOpen) return;
+  // A room that is open, or still opening, owns the screen until it is left.
+  if (room.active) return;
   if (inviteFromHash()) {
     showScreen("invited");
     setError(screens.invited);

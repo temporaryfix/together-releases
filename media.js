@@ -3,15 +3,16 @@
 // Every source has the same shape, so the room doesn't care how bytes arrive:
 //
 //   {
-//     kind:    "file" | ...,
+//     kind:    "file" | "stream",
 //     title:   string,              shown in the room and compared with other peers'
 //     size:    number | undefined,  bytes, if known
 //     attach(video): Promise<void>  load into the element; resolves once the duration is known
 //     release(): void               free whatever attach() took
 //   }
 //
-// Today there's one: a file on this device. Streaming from another peer (iroh-blobs) will be a
-// second source with the same shape.
+// Two of them: a file on this device, and the room's own copy arriving over iroh-blobs.
+
+import { serve, stopServing, streamUrl } from "./stream.js";
 
 export class MediaLoadError extends Error {}
 
@@ -34,6 +35,32 @@ export function fileSource(file) {
     release() {
       if (url) URL.revokeObjectURL(url);
       url = undefined;
+    },
+  };
+}
+
+/**
+ * The room's copy, fetched from its peers as it plays.
+ *
+ * The bytes arrive over iroh; the Service Worker turns them into the range requests a `<video>`
+ * expects, so seeking works long before the whole film is here.
+ */
+export function streamSource(session, { hash, title, size }) {
+  return {
+    kind: "stream",
+    title,
+    size,
+    async attach(video) {
+      try {
+        await serve(session);
+        await load(video, streamUrl(hash, title));
+      } catch (error) {
+        this.release();
+        throw error instanceof MediaLoadError ? error : new MediaLoadError(error.message);
+      }
+    },
+    release() {
+      stopServing();
     },
   };
 }

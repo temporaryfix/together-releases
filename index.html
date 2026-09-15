@@ -67,7 +67,7 @@
           <button class="btn btn-secondary" type="submit">Join</button>
         </form>
         <p class="field-error" role="alert" data-join-error></p>
-        <p class="panel-hint">You’ll choose your own copy of the video next.</p>
+        <p class="panel-hint">You’ll stream their video, or bring your own copy.</p>
       </section>
     </div>
 
@@ -82,16 +82,26 @@
         <circle cx="29" cy="14" r="11" fill="var(--beam-warm)"/>
       </svg>
       <h1 class="invited-title">You’re invited to watch together</h1>
-      <p class="invited-lede">Choose your copy of the video to join. Everyone plays their own file, and together keeps you all at the same moment.</p>
+      <p class="invited-lede">The video streams from the people already in the room, and together keeps you all at the same moment.</p>
 
       <div class="name-slot" data-name-slot></div>
 
-      <label class="dropzone dropzone-compact" data-dropzone>
-        <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-        <svg class="dropzone-icon" aria-hidden="true"><use href="#i-film"/></svg>
-        <span class="dropzone-title">Choose your copy of the video</span>
-        <span class="dropzone-hint">or drop it here</span>
-      </label>
+      <div class="invited-lead" data-stream-lead>
+        <button class="btn btn-primary btn-large" type="button" data-stream>
+          <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Start watching</span>
+        </button>
+        <p class="invited-note">Nothing to download first: the video arrives from your friends as you watch, and you can skip ahead before it’s all here.</p>
+      </div>
+
+      <details class="own-copy" data-own-copy>
+        <summary class="own-copy-summary">Have the file already? Use your own copy</summary>
+        <label class="dropzone dropzone-compact" data-dropzone>
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+          <svg class="dropzone-icon" aria-hidden="true"><use href="#i-film"/></svg>
+          <span class="dropzone-title">Choose your copy of the video</span>
+          <span class="dropzone-hint">or drop it here</span>
+        </label>
+      </details>
       <p class="field-error" role="alert" data-error></p>
 
       <a class="quiet-link" href="./" data-home>Start your own room instead</a>
@@ -141,6 +151,12 @@
             <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>
           </button>
           <p class="time"><span data-current>0:00</span><span class="time-sep"> / </span><span data-duration>0:00</span></p>
+          <div class="ready" data-ready-control hidden>
+            <button class="btn btn-secondary btn-ready" type="button" aria-pressed="false" title="Ready (R)" data-ready>
+              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span data-ready-label>I’m ready</span>
+            </button>
+            <p class="ready-note" data-ready-note></p>
+          </div>
           <span class="spacer"></span>
           <div class="volume">
             <button class="btn btn-icon" type="button" aria-label="Mute" title="Mute (M)" data-mute>
@@ -157,7 +173,7 @@
 
     <div class="popover" id="invite-popover" popover data-invite-popover>
       <h2 class="popover-title">Invite friends</h2>
-      <p class="popover-text">Anyone with the link can join. They’ll need their own copy of the video.</p>
+      <p class="popover-text">Anyone with the link can join and streams your copy, or brings their own.</p>
       <div class="copy-row">
         <label class="visually-hidden" for="invite-link">Invite link</label>
         <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>

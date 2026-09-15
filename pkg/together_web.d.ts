@@ -9,32 +9,76 @@
 export type ReadableStreamType = "bytes";
 
 export interface SessionOptions {
-    /** The element to keep in sync. Load the media into it first. */
+    /** The element to keep in sync. Load the media into it first, unless `stream` is set. */
     video: HTMLVideoElement;
     /** Shown to the others in the room. */
     name: string;
-    /** Usually the file name. */
-    title: string;
+    /** Usually the file name. Left out when streaming: the room says what is playing. */
+    title?: string;
     /** Seconds, if already known; the element reports it otherwise. */
     duration?: number;
     /** Bytes. */
     size?: number;
+    /** Join with no copy of your own and stream the room's, over `Session.streamHead`/`streamBody`. */
+    stream?: boolean;
+}
+
+export interface StreamHead {
+    status: number;
+    contentType: string;
+    contentRange: string | null;
+    contentLength: number;
+    start: number;
+    end: number;
 }
 
 export interface Person { id: string; name: string; initials: string; hue: number }
 export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown"; label: string; detail: string }
-export interface PeerView { who: Person; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean }
+export interface PeerView { who: Person; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean }
+
+/** The ready check from your side. `open` is whether saying so would do anything. */
+export interface ReadyView { mine: boolean; count: number; total: number; open: boolean; label: string }
+
+/** What the room is waiting for. `startsAt` is on the room clock: see `Session.clockMs`. */
+export type WaitingView =
+| { type: "nobody" }
+| { type: "ready"; who: string[]; message: string }
+| { type: "stalled"; who: string[]; local: boolean; message: string }
+| { type: "starting"; startsAt: number; remainingMs: number; resuming: boolean; message: string };
 
 export type SessionEvent =
 | { type: "peerJoined"; who: Person; message: string }
 | { type: "peerLeft"; who: Person; message: string }
 | { type: "changed"; who: Person; local: boolean; action: "play" | "pause" | "seek"; position: number; message: string }
 | { type: "mediaMismatch"; who: Person; title: string; duration: number | null; message: string }
-| { type: "status"; me: Person; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null }
+| { type: "ready"; who: Person; local: boolean; ready: boolean; message: string }
+| { type: "holding"; who: Person; local: boolean; message: string }
+| { type: "starting"; startsAt: number; resuming: boolean; message: string }
+| { type: "gaveUp"; who: Person; local: boolean; message: string }
+| { type: "streaming"; hash: string; title: string; size: number }
+| { type: "status"; me: Person; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; ready: ReadyView; waiting: WaitingView }
 | { type: "playback"; blocked: boolean }
 | { type: "stopped"; error: string | null; message: string };
 
 
+
+/**
+ * One response body, read a piece at a time.
+ */
+export class Body {
+    private constructor();
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Stop reading: the player seeked away, or the room closed. Ends a `next()` that is still
+     * waiting for a piece that may never come, and drops the fetching behind it.
+     */
+    cancel(): void;
+    /**
+     * The next piece, or `undefined` once the body is complete or cancelled.
+     */
+    next(): Promise<any>;
+}
 
 export class IntoUnderlyingByteSource {
     private constructor();
@@ -68,6 +112,14 @@ export class Session {
     private constructor();
     free(): void;
     [Symbol.dispose](): void;
+    /**
+     * The room's clock in milliseconds: the same clock `startsAt` is on.
+     *
+     * A countdown is an instant, not a duration, so read it from here rather than starting a
+     * timer when the event arrives — otherwise the last second drifts by however long the
+     * message took to be delivered and handled.
+     */
+    clockMs(): number;
     /**
      * Start a new room.
      */
@@ -103,6 +155,21 @@ export class Session {
      */
     seek(seconds: number): void;
     /**
+     * Say whether we're ready to start, or take it back. Once everyone in the room is ready,
+     * playback is scheduled for a shared instant and every screen starts on the same frame.
+     */
+    setReady(ready: boolean): void;
+    /**
+     * The body for a `StreamHead`, read a piece at a time. Cancel it to stop downloading for a
+     * response the browser has abandoned.
+     */
+    streamBody(start: number, end: number): Body;
+    /**
+     * What to answer a Service Worker request for `hash` of the streamed film, as a
+     * `StreamHead`. Anything but the film we are streaming gets a 404.
+     */
+    streamHead(hash: string, range?: string | null): any;
+    /**
      * The ticket others join with. Anyone in a room can invite; it keeps working after the
      * original host leaves, as long as this session is open.
      */
@@ -125,10 +192,13 @@ export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembl
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
+    readonly __wbg_body_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingbytesource_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsink_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
     readonly __wbg_session_free: (a: number, b: number) => void;
+    readonly body_cancel: (a: number) => void;
+    readonly body_next: (a: number) => number;
     readonly formatTime: (a: number, b: number) => void;
     readonly intounderlyingbytesource_autoAllocateChunkSize: (a: number) => number;
     readonly intounderlyingbytesource_cancel: (a: number) => void;
@@ -141,6 +211,7 @@ export interface InitOutput {
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: number) => number;
     readonly parseInvite: (a: number, b: number, c: number) => void;
+    readonly session_clockMs: (a: number) => number;
     readonly session_host: (a: number) => number;
     readonly session_join: (a: number, b: number, c: number) => number;
     readonly session_leave: (a: number) => number;
@@ -149,19 +220,22 @@ export interface InitOutput {
     readonly session_play: (a: number) => void;
     readonly session_resumePlayback: (a: number) => void;
     readonly session_seek: (a: number, b: number) => void;
+    readonly session_setReady: (a: number, b: number) => void;
+    readonly session_streamBody: (a: number, b: number, c: number, d: number) => void;
+    readonly session_streamHead: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_18273: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_18275: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_400: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_5635: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_8194: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_9889: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_18115: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_7988: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_9095: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_9150: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21822: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21824: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11675: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_13428: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_614: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_9108: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11470: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12588: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12668: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21662: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
