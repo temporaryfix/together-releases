@@ -1,0 +1,120 @@
+// Small DOM helpers shared by the screens.
+
+/** `h("p", { class: "x" }, "text", child)` */
+export function h(tag, attrs = {}, ...children) {
+  const el = document.createElement(tag);
+  for (const [key, value] of Object.entries(attrs)) {
+    if (value === undefined || value === false) continue;
+    if (key.startsWith("on")) el.addEventListener(key.slice(2), value);
+    else if (key === "style") for (const [prop, v] of Object.entries(value)) el.style.setProperty(prop, v);
+    else el.setAttribute(key, value === true ? "" : value);
+  }
+  el.append(...children.flat().filter((c) => c !== undefined && c !== null));
+  return el;
+}
+
+const SVG = "http://www.w3.org/2000/svg";
+
+/** An icon from the sprite in index.html. */
+export function icon(name, className = "icon") {
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", className);
+  svg.setAttribute("aria-hidden", "true");
+  const use = document.createElementNS(SVG, "use");
+  use.setAttribute("href", `#${name}`);
+  svg.append(use);
+  return svg;
+}
+
+/** Swap a sprite icon in place. */
+export function setIcon(svg, name) {
+  svg.querySelector("use").setAttribute("href", `#${name}`);
+}
+
+/** Circle with initials, tinted by the person's hue. */
+export function avatar(person) {
+  return h("span", { class: "avatar", style: { "--hue": person.hue }, "aria-hidden": "true" }, person.initials);
+}
+
+/** The sync badge from a `SyncBadge` value. */
+export function renderBadge(el, badge) {
+  el.dataset.level = badge.level;
+  el.title = badge.detail;
+  const label = el.querySelector("[data-label]");
+  if (label.textContent !== badge.label) label.textContent = badge.label;
+}
+
+/** Transient messages, newest at the bottom, at most a few at a time. */
+export class Toasts {
+  constructor(list, { max = 3, duration = 3600 } = {}) {
+    this.list = list;
+    this.max = max;
+    this.duration = duration;
+  }
+
+  /** A toast with the same `key` as a visible one replaces it (e.g. a burst of seeks). */
+  show(message, { person, icon: iconName, key } = {}) {
+    const lead = person ? avatar(person) : iconName ? icon(iconName) : undefined;
+    const item = h("li", { class: lead ? "toast" : "toast is-plain" }, lead, h("span", {}, message));
+    const previous = key && [...this.list.children].find((li) => li.dataset.key === key && !li.classList.contains("is-leaving"));
+    if (key) item.dataset.key = key;
+    if (previous) {
+      clearTimeout(previous.timer);
+      previous.replaceWith(item);
+      item.style.animation = "none";
+    } else {
+      this.list.append(item);
+    }
+    while (this.list.children.length > this.max) this.list.firstElementChild.remove();
+    item.timer = setTimeout(() => dismiss(item), this.duration);
+  }
+
+  clear() {
+    this.list.replaceChildren();
+  }
+}
+
+function dismiss(item) {
+  if (!item.isConnected) return;
+  item.classList.add("is-leaving");
+  item.addEventListener("animationend", () => item.remove(), { once: true });
+  // Reduced motion: animations may not run at all.
+  setTimeout(() => item.remove(), 400);
+}
+
+/** Copy text, falling back to selecting an input when the Clipboard API is unavailable. */
+export async function copyText(text, fallbackInput) {
+  try {
+    await navigator.clipboard.writeText(text);
+    return true;
+  } catch {
+    if (!fallbackInput) return false;
+    fallbackInput.focus();
+    fallbackInput.select();
+    return document.execCommand?.("copy") ?? false;
+  }
+}
+
+/** Keep a range input's filled track in step with its value. */
+export function paintRange(input) {
+  const max = Number(input.max) || 0;
+  const fill = max > 0 ? (Number(input.value) / max) * 100 : 0;
+  input.style.setProperty("--fill", `${fill}%`);
+}
+
+/** Local preferences. */
+export const prefs = {
+  get name() {
+    return localStorage.getItem("together.name")?.trim() || "";
+  },
+  set name(value) {
+    localStorage.setItem("together.name", value.trim());
+  },
+  get volume() {
+    const v = Number(localStorage.getItem("together.volume"));
+    return Number.isFinite(v) && localStorage.getItem("together.volume") !== null ? v : 1;
+  },
+  set volume(value) {
+    localStorage.setItem("together.volume", String(value));
+  },
+};

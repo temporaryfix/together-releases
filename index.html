@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#15131d">
+  <meta name="description" content="Watch the same video at the same moment as your friends. Peer-to-peer, no accounts, nothing to install.">
+  <title>together</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="modulepreload" href="pkg/together_web.js">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <!-- Icons, drawn once and referenced with <use>. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
+      <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="m16 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-leave" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 5.5A2 2 0 0 0 14 4H6a2 2 0 0 0-2 2v8a2 2 0 0 0 1.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 10v4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.1" fill="currentColor"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11m0-11-11 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="mark" viewBox="0 0 44 28">
+        <circle cx="15" cy="14" r="11" fill="var(--beam-cool)"/>
+        <circle cx="29" cy="14" r="11" fill="var(--beam-warm)"/>
+        <path d="M22 5.5a11 11 0 0 1 0 17 11 11 0 0 1 0-17z" fill="var(--glow)"/>
+      </symbol>
+    </defs>
+  </svg>
+
+  <!-- Landing -->
+  <main id="landing" class="screen landing">
+    <div class="beams" aria-hidden="true"><span class="beam beam-cool"></span><span class="beam beam-warm"></span></div>
+
+    <header class="hero">
+      <h1 class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</h1>
+      <p class="promise">Watch the same video at the same moment, wherever your friends are.</p>
+    </header>
+
+    <div class="name-slot" data-name-slot></div>
+
+    <div class="actions">
+      <section class="panel start" aria-labelledby="start-title">
+        <label class="dropzone" data-dropzone>
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+          <svg class="dropzone-icon" aria-hidden="true"><use href="#i-film"/></svg>
+          <span class="dropzone-title" id="start-title">Start a room</span>
+          <span class="dropzone-hint">Drop a video here, or <span class="fake-link">choose a file</span></span>
+        </label>
+        <p class="field-error" role="alert" data-error></p>
+      </section>
+
+      <section class="panel join" aria-labelledby="join-title">
+        <h2 id="join-title" class="panel-title">Join a room</h2>
+        <form class="join-form" data-join-form novalidate>
+          <label class="visually-hidden" for="invite-input">Invite link</label>
+          <input id="invite-input" class="input" type="text" placeholder="Paste an invite link" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
+          <button class="btn btn-secondary" type="submit">Join</button>
+        </form>
+        <p class="field-error" role="alert" data-join-error></p>
+        <p class="panel-hint">You’ll choose your own copy of the video next.</p>
+      </section>
+    </div>
+
+    <footer class="fineprint">Peer-to-peer and end-to-end encrypted. Your video never leaves your device.</footer>
+  </main>
+
+  <!-- Opened from an invite link -->
+  <main id="invited" class="screen invited" hidden>
+    <div class="invited-card">
+      <svg class="invited-mark" aria-hidden="true" viewBox="0 0 44 28">
+        <circle cx="15" cy="14" r="10.2" fill="none" stroke="var(--beam-cool)" stroke-width="1.6" stroke-dasharray="3.2 3"/>
+        <circle cx="29" cy="14" r="11" fill="var(--beam-warm)"/>
+      </svg>
+      <h1 class="invited-title">You’re invited to watch together</h1>
+      <p class="invited-lede">Choose your copy of the video to join. Everyone plays their own file, and together keeps you all at the same moment.</p>
+
+      <div class="name-slot" data-name-slot></div>
+
+      <label class="dropzone dropzone-compact" data-dropzone>
+        <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+        <svg class="dropzone-icon" aria-hidden="true"><use href="#i-film"/></svg>
+        <span class="dropzone-title">Choose your copy of the video</span>
+        <span class="dropzone-hint">or drop it here</span>
+      </label>
+      <p class="field-error" role="alert" data-error></p>
+
+      <a class="quiet-link" href="./" data-home>Start your own room instead</a>
+    </div>
+  </main>
+
+  <!-- The room -->
+  <main id="room" class="screen room" hidden>
+    <div class="stage" data-stage>
+      <video class="video" playsinline preload="auto" data-video></video>
+
+      <header class="topbar chrome">
+        <div class="room-title">
+          <svg class="room-mark" aria-hidden="true"><use href="#mark"/></svg>
+          <span class="room-name" data-title></span>
+        </div>
+        <ul class="people" aria-label="People in the room" data-people></ul>
+        <div class="topbar-actions">
+          <button class="btn btn-primary" type="button" data-invite popovertarget="invite-popover">
+            <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><span>Invite</span>
+          </button>
+          <button class="btn btn-icon" type="button" aria-label="Leave room" title="Leave room" data-leave>
+            <svg class="icon" aria-hidden="true"><use href="#i-leave"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="notice" role="status" data-mismatch hidden>
+        <svg class="icon notice-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+        <div class="notice-body">
+          <p class="notice-title" data-mismatch-title></p>
+          <p class="notice-text" data-mismatch-text></p>
+        </div>
+        <button class="btn btn-icon btn-small" type="button" aria-label="Dismiss" data-mismatch-close>
+          <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+
+      <ol class="toasts" aria-live="polite" data-toasts></ol>
+
+      <div class="overlay" data-overlay hidden></div>
+
+      <div class="controls chrome" data-controls>
+        <input class="scrubber" type="range" min="0" max="0" step="0.01" value="0" aria-label="Seek" data-scrubber>
+        <div class="controls-row">
+          <button class="btn btn-icon btn-play" type="button" aria-label="Play" title="Play (Space)" data-play>
+            <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>
+          </button>
+          <p class="time"><span data-current>0:00</span><span class="time-sep"> / </span><span data-duration>0:00</span></p>
+          <span class="spacer"></span>
+          <div class="volume">
+            <button class="btn btn-icon" type="button" aria-label="Mute" title="Mute (M)" data-mute>
+              <svg class="icon" aria-hidden="true"><use href="#i-volume"/></svg>
+            </button>
+            <input class="volume-slider" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" data-volume>
+          </div>
+          <button class="btn btn-icon" type="button" aria-label="Full screen" title="Full screen (F)" data-fullscreen>
+            <svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="popover" id="invite-popover" popover data-invite-popover>
+      <h2 class="popover-title">Invite friends</h2>
+      <p class="popover-text">Anyone with the link can join. They’ll need their own copy of the video.</p>
+      <div class="copy-row">
+        <label class="visually-hidden" for="invite-link">Invite link</label>
+        <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>
+        <button class="btn btn-secondary" type="button" data-copy="link">
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
+        </button>
+      </div>
+      <p class="popover-subtitle">From a terminal</p>
+      <div class="copy-row">
+        <label class="visually-hidden" for="invite-cli">Command</label>
+        <input id="invite-cli" class="input input-mono" type="text" readonly data-invite-cli>
+        <button class="btn btn-secondary" type="button" data-copy="cli">
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <noscript><p class="noscript">together needs JavaScript and WebAssembly to run.</p></noscript>
+</body>
+</html>
