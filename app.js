@@ -51,7 +51,7 @@ class NameField {
         onkeydown: (e) => e.key === "Enter" && this.commit(),
         onblur: () => this.input.value.trim() && this.commit(),
       });
-      this.slot.replaceChildren(h("div", { class: "name-row" }, h("span", {}, this.lead), this.input), error);
+      this.slot.replaceChildren(h("div", { class: "name-row" }, this.input), error);
       if (focus) this.input.focus();
     } else {
       const change = h("button", { class: "name-change quiet-link", type: "button", onclick: () => this.edit() }, "Change");
@@ -91,7 +91,7 @@ class NameField {
 
   demand() {
     this.input.setAttribute("aria-invalid", "true");
-    this.error.textContent = "Add your name so friends know who’s who.";
+    this.error.textContent = "Add your name first.";
     this.input.focus();
     this.input.addEventListener(
       "input",
@@ -212,10 +212,13 @@ function joinWith(file) {
 invitedName.onCommit = () => pendingJoin?.();
 wireDropzone(screens.invited, joinWith);
 $("[data-stream]", screens.invited).addEventListener("click", () => joinWith());
-// Nothing to stream through without a Service Worker, so lead with bringing your own copy.
-if (!canStream()) {
-  $("[data-stream-lead]", screens.invited).hidden = true;
-  $("[data-own-copy]", screens.invited).open = true;
+// A browser can only stream the room's copy through a relay of your own, so without one, don't
+// offer it: go straight to opening your own copy rather than finding out after a wait.
+if (canStream() && prefs.relay) {
+  $("[data-stream]", screens.invited).hidden = false;
+  $("[data-own-copy-hint]", screens.invited).hidden = true;
+} else {
+  $("[data-own-copy]", screens.invited).classList.add("btn-primary");
 }
 $("[data-home]").addEventListener("click", (e) => {
   e.preventDefault();
@@ -255,6 +258,7 @@ class Room {
     this.readyButton = $("[data-ready]", root);
     this.readyLabel = $("[data-ready-label]", root);
     this.readyNote = $("[data-ready-note]", root);
+    this.readyTitle = $("[data-ready-title]", root);
     this.toasts = new Toasts($("[data-toasts]", root));
     this.session = undefined;
     this.bind();
@@ -463,6 +467,7 @@ class Room {
         this.stopped = event;
         break;
     }
+    this.renderReady();
     this.renderOverlay();
   }
 
@@ -515,16 +520,24 @@ class Room {
   /** The ready control: who has said they're ready, and the way to say it yourself. */
   renderReady() {
     const ready = this.ready;
-    this.readyControl.hidden = !ready?.open;
-    if (!ready?.open) return;
+    // Only worth asking once there's somebody to start with, and while nothing else is on screen.
+    const show = Boolean(ready?.open) && this.peers.size > 0 && !this.starting && this.waiting?.type !== "stalled";
+    this.readyControl.hidden = !show;
+    this.stage.classList.toggle("is-asking", show);
+    if (!show) return;
     const mine = ready.mine;
-    this.readyButton.setAttribute("aria-pressed", String(mine));
-    this.readyButton.classList.toggle("is-ready", mine);
-    this.readyButton.title = mine ? "Ready — press R to take it back" : "Ready (R)";
-    const label = mine ? "Ready" : "I’m ready";
-    if (this.readyLabel.textContent !== label) this.readyLabel.textContent = label;
-    const note = [ready.label, this.waiting?.type === "ready" ? this.waiting.message : ""].filter(Boolean).join(" · ");
+    const others = this.waiting?.type === "ready" ? this.waiting.message : "";
+    const title = mine ? "You’re ready" : "Ready to watch?";
+    const note = mine ? others || `${ready.count} of ${ready.total} ready` : "It starts for everyone once you’re all ready.";
+    if (this.readyTitle.textContent !== title) this.readyTitle.textContent = title;
     if (this.readyNote.textContent !== note) this.readyNote.textContent = note;
+    this.readyButton.setAttribute("aria-pressed", String(mine));
+    this.readyButton.classList.toggle("btn-primary", !mine);
+    this.readyButton.classList.toggle("btn-secondary", mine);
+    this.readyButton.title = mine ? "Not ready after all (R)" : "I’m ready (R)";
+    const label = mine ? "Not ready" : "I’m ready";
+    if (this.readyLabel.textContent !== label) this.readyLabel.textContent = label;
+    setIcon($("svg", this.readyButton), mine ? "i-close" : "i-check");
   }
 
   toggleReady() {
@@ -580,6 +593,12 @@ class Room {
   }
 
   overlayState() {
+    const leaveForOwnCopy = (primary = true) =>
+      h(
+        "button",
+        { class: primary ? "btn btn-primary" : "btn btn-secondary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
+        "Open my own copy",
+      );
     if (this.phase === "stopped" && this.stopped?.error) {
       return {
         kind: "stopped",
@@ -587,21 +606,13 @@ class Room {
           card({
             mark: markLonely(),
             title: "Disconnected",
-            text: `${this.stopped.message}. Your friends can send a new invite to get you back in.`,
+            text: this.stopped.message,
             action: h("button", { class: "btn btn-primary", type: "button", onclick: () => this.leave() }, "Back to start"),
           }),
       };
     }
     if (this.phase === "starting") {
-      return {
-        kind: "starting",
-        render: () =>
-          card({
-            mark: markPulse(),
-            title: this.isHost ? "Starting your room…" : "Joining the room…",
-            text: this.isHost ? "Getting an invite link ready." : "Finding the people in this room.",
-          }),
-      };
+      return { kind: "starting", render: () => card({ mark: markPulse(), title: "Connecting…" }) };
     }
     if (this.blocked) {
       return {
@@ -611,27 +622,14 @@ class Room {
             "button",
             { class: "join-playback", type: "button", onclick: () => this.session?.resumePlayback() },
             h("span", { class: "join-playback-disc" }, icon("i-play")),
-            h("span", { class: "overlay-card" },
-              h("span", { class: "overlay-title" }, "Click to join playback"),
-              h("span", { class: "overlay-text" }, "Your friends are already watching. Your browser needs a click before it plays video with sound."),
-            ),
+            h("span", { class: "overlay-title" }, "Click to join in"),
           ),
       };
     }
     if (this.streamError) {
       return {
         kind: "streamError",
-        render: () =>
-          card({
-            mark: markLonely(),
-            title: "Couldn’t play the room’s copy",
-            text: `${this.streamError} Joining with your own copy of the video still works.`,
-            action: h(
-              "button",
-              { class: "btn btn-primary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
-              "Use my own copy",
-            ),
-          }),
+        render: () => card({ mark: markLonely(), title: "Couldn’t play the room’s video", text: this.streamError, action: leaveForOwnCopy() }),
       };
     }
     if (this.phase !== "live") return undefined;
@@ -643,10 +641,8 @@ class Room {
         render: () =>
           card({
             mark: markPulse(),
-            title: "Connecting to the room…",
-            text: slow
-              ? "Still trying. Make sure the person who invited you still has the room open."
-              : "This usually takes a few seconds.",
+            title: "Joining…",
+            text: slow ? "Still trying. Is the person who invited you still in the room?" : undefined,
           }),
       };
     }
@@ -656,20 +652,13 @@ class Room {
         render: () =>
           card({
             mark: markLonely(),
-            title: "Can’t stream through the public relay",
-            text: prefs.relay
-              ? "Whoever is sharing the video isn’t on your relay, and films never go through the public ones. Ask them to use your relay too, or use your own copy."
-              : "Browsers always connect through a relay, and films never go through the public ones. Use your own copy, or open the invite with ?relay= set to a relay server you run.",
-            action: h(
-              "button",
-              { class: "btn btn-primary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
-              "Use my own copy",
-            ),
+            title: "Can’t stream to this browser",
+            text: "Open your own copy of the video to watch.",
+            action: leaveForOwnCopy(),
           }),
       };
     }
     if (this.awaitingFilm) {
-      // Only peers who can serve the film advertise it, and a browser never can.
       const slow = performance.now() - this.openedAt >= SLOW_CONNECT_MS;
       return {
         kind: "waiting-for-film",
@@ -677,17 +666,8 @@ class Room {
         render: () =>
           card({
             mark: markPulse(),
-            title: slow ? "Nobody here has shared the video" : "Getting the video…",
-            text: slow
-              ? "It streams from whoever started the room, so they need to still have together open."
-              : "It streams straight from your friends. There’s nothing to download first.",
-            action: slow
-              ? h(
-                  "button",
-                  { class: "btn btn-secondary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
-                  "Use my own copy",
-                )
-              : undefined,
+            title: slow ? "Nobody’s sharing the video" : "Getting the video…",
+            action: slow ? leaveForOwnCopy(false) : undefined,
           }),
       };
     }
@@ -706,12 +686,7 @@ class Room {
             : tick === 0
               // The film is the payoff; all that is left is the ring opening out of the last beat.
               ? h("div", { class: "countdown is-go" }, h("span", { class: "countdown-ring" }))
-              : h(
-                  "div",
-                  { class: "countdown" },
-                  h("span", { class: "countdown-number" }, String(tick)),
-                  h("p", { class: "countdown-caption" }, message),
-                ),
+              : h("div", { class: "countdown" }, h("span", { class: "countdown-number" }, String(tick))),
       };
     }
     if (this.waiting?.type === "stalled") {
@@ -719,18 +694,12 @@ class Room {
       return {
         kind: "holding",
         title,
-        render: () =>
-          card({
-            quiet: true,
-            mark: markPulse(),
-            title,
-            text: "Nobody has to do anything: playback picks up again by itself.",
-          }),
+        render: () => card({ quiet: true, mark: markPulse(), title, text: "Carries on by itself." }),
       };
     }
     if (this.peers.size > 0) return undefined;
     if (!this.video.paused) return undefined;
-    const title = this.hadPeers ? "Everyone else left" : "Waiting for friends";
+    const title = this.hadPeers ? "Everyone else left" : "Invite a friend";
     return {
       kind: "waiting",
       title,
@@ -739,7 +708,7 @@ class Room {
         card({
           mark: markWaiting(),
           title,
-          text: "Send the invite link. Whoever joins starts at the same moment as you.",
+          text: "Send them the link. You’ll start together.",
           action: h(
             "button",
             { class: "btn btn-primary", type: "button", onclick: () => this.copyInvite() },
@@ -970,7 +939,7 @@ function card({ mark, title, text, action, quiet = false }) {
     { class: quiet ? "overlay-card is-quiet" : "overlay-card" },
     mark,
     h("p", { class: "overlay-title" }, title),
-    h("p", { class: "overlay-text" }, text),
+    text && h("p", { class: "overlay-text" }, text),
     action,
   );
 }

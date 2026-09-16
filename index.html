@@ -5,10 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#000000">
-  <meta name="description" content="Watch the same video at the same moment as your friends. Peer-to-peer, no accounts, nothing to install.">
+  <meta name="description" content="Watch together, wherever you are. Peer to peer, no accounts, nothing to install.">
   <title>together</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
-  <link rel="preload" href="instrument-sans.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.css">
   <link rel="modulepreload" href="pkg/together_web.js">
   <script type="module" src="app.js"></script>
@@ -41,63 +40,52 @@
   <!-- Landing -->
   <main id="landing" class="screen landing">
     <header class="masthead">
-      <h1 class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</h1>
-      <div class="name-slot" data-name-slot></div>
+      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</span>
     </header>
 
     <div class="middle">
-      <label class="canvas dropzone" data-dropzone>
-        <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" aria-label="Choose a video to start a room" data-file>
-        <span class="canvas-title">Watch the same film at the same moment, wherever your friends are.</span>
-        <span class="canvas-actions">
-          <span class="btn btn-primary btn-large"><svg class="icon" aria-hidden="true"><use href="#i-film"/></svg>Choose a video</span>
-          <span class="canvas-hint">or drop one here to start a room</span>
-        </span>
-      </label>
-      <p class="field-error" role="alert" data-error></p>
+      <h1 class="headline">Watch together, wherever you are.</h1>
 
-      <section class="below" aria-label="Join a room">
-        <form class="join-form" data-join-form novalidate>
-          <label class="visually-hidden" for="invite-input">Invite link</label>
-          <input id="invite-input" class="input" type="text" placeholder="Got an invite? Paste the link" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
-          <button class="btn btn-secondary" type="submit">Join</button>
-        </form>
-        <p class="field-error" role="alert" data-join-error></p>
+      <section class="stage-card dropzone" data-dropzone aria-label="Start a room">
+        <div class="name-slot" data-name-slot></div>
+        <label class="btn btn-primary btn-large">
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+          Choose a video
+        </label>
+        <p class="hint">or drop one anywhere</p>
+        <p class="field-error" role="alert" data-error></p>
       </section>
-    </div>
 
-    <footer class="fineprint">Peer to peer and end-to-end encrypted, with no accounts. A shared video goes straight to your friends and nowhere else.</footer>
+      <form class="join-form" data-join-form novalidate>
+        <label class="visually-hidden" for="invite-input">Invite link</label>
+        <input id="invite-input" class="input" type="text" placeholder="Have an invite? Paste it here" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
+        <button class="btn btn-secondary" type="submit">Join</button>
+      </form>
+      <p class="field-error" role="alert" data-join-error></p>
+    </div>
   </main>
 
   <!-- Opened from an invite link -->
   <main id="invited" class="screen invited" hidden>
     <header class="masthead">
       <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</a>
-      <div class="name-slot" data-name-slot></div>
     </header>
 
     <div class="middle">
-      <section class="canvas" aria-labelledby="invited-title">
-        <h2 class="canvas-title" id="invited-title">You’re invited to watch together</h2>
-        <div class="canvas-actions" data-stream-lead>
-          <button class="btn btn-primary btn-large" type="button" data-stream>
-            <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg><span>Start watching</span>
-          </button>
-          <p class="canvas-hint">It streams from your friends as you watch. Nothing to download first.</p>
-        </div>
-        <details class="own-copy" data-own-copy>
-          <summary class="own-copy-summary">Have the video already? Use your own copy</summary>
-          <label class="dropzone dropzone-compact" data-dropzone>
-            <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-            <span class="dropzone-title">Choose your copy of the video</span>
-            <span class="dropzone-hint">or drop it here</span>
-          </label>
-        </details>
-      </section>
-      <p class="field-error" role="alert" data-error></p>
-    </div>
+      <h1 class="headline">You’re invited to watch together.</h1>
 
-    <footer class="fineprint">Everyone watches their own screen, at the same moment.</footer>
+      <section class="stage-card dropzone" data-dropzone aria-label="Join the room">
+        <div class="name-slot" data-name-slot></div>
+        <!-- Streaming needs a relay of your own in a browser, so usually it's your own copy. -->
+        <button class="btn btn-primary btn-large" type="button" data-stream hidden>Start watching</button>
+        <label class="btn btn-large" data-own-copy>
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+          Open your copy of the video
+        </label>
+        <p class="hint" data-own-copy-hint>Everyone plays their own copy. Drop yours anywhere.</p>
+        <p class="field-error" role="alert" data-error></p>
+      </section>
+    </div>
   </main>
 
   <!-- The room -->
@@ -136,6 +124,15 @@
 
       <div class="overlay" data-overlay hidden></div>
 
+      <!-- The ready check: what to do next once friends are here. -->
+      <div class="ready-prompt" data-ready-control hidden>
+        <p class="ready-title" data-ready-title></p>
+        <p class="ready-note" data-ready-note></p>
+        <button class="btn btn-primary btn-large" type="button" aria-pressed="false" data-ready>
+          <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span data-ready-label>I’m ready</span>
+        </button>
+      </div>
+
       <div class="controls chrome" data-controls>
         <input class="scrubber" type="range" min="0" max="0" step="0.01" value="0" aria-label="Seek" data-scrubber>
         <div class="controls-row">
@@ -143,12 +140,6 @@
             <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>
           </button>
           <p class="time"><span data-current>0:00</span><span class="time-sep"> / </span><span data-duration>0:00</span></p>
-          <div class="ready" data-ready-control hidden>
-            <button class="btn btn-secondary btn-ready" type="button" aria-pressed="false" title="Ready (R)" data-ready>
-              <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span data-ready-label>I’m ready</span>
-            </button>
-            <p class="ready-note" data-ready-note></p>
-          </div>
           <span class="spacer"></span>
           <div class="volume">
             <button class="btn btn-icon" type="button" aria-label="Mute" title="Mute (M)" data-mute>
@@ -165,7 +156,7 @@
 
     <div class="popover" id="invite-popover" popover data-invite-popover>
       <h2 class="popover-title">Invite friends</h2>
-      <p class="popover-text">Anyone with the link can join and streams your copy, or brings their own.</p>
+      <p class="popover-text">Anyone with the link can join.</p>
       <div class="copy-row">
         <label class="visually-hidden" for="invite-link">Invite link</label>
         <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>
@@ -173,7 +164,7 @@
           <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
         </button>
       </div>
-      <p class="popover-subtitle">From a terminal</p>
+      <p class="popover-subtitle">Or in a terminal</p>
       <div class="copy-row">
         <label class="visually-hidden" for="invite-cli">Command</label>
         <input id="invite-cli" class="input input-mono" type="text" readonly data-invite-cli>
