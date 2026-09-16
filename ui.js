@@ -132,3 +132,27 @@ export const prefs = {
   const relay = new URLSearchParams(location.search).get("relay");
   if (relay !== null) prefs.relay = relay;
 }
+
+/**
+ * Console logging at the level `?log=` asks for (trace, debug, info, warn, error or off), warnings
+ * and errors by default. The room's own logging, in wasm, reads the same parameter.
+ *
+ * - info: opening and leaving the room, what you press, and every room event.
+ * - debug: the video element's own events (waiting, seeking, rate changes…) with its position.
+ * - trace: the room's status twice a second.
+ */
+export const log = (() => {
+  const levels = ["trace", "debug", "info", "warn", "error", "off"];
+  const asked = new URLSearchParams(location.search).get("log");
+  const threshold = levels.includes(asked) ? levels.indexOf(asked) : levels.indexOf("warn");
+  const at = (level, write) => (...args) => {
+    if (levels.indexOf(level) >= threshold) write(`together: ${level.toUpperCase()}`, ...args);
+  };
+  return {
+    trace: at("trace", console.log),
+    debug: at("debug", console.log),
+    info: at("info", console.info),
+    warn: at("warn", console.warn),
+    error: at("error", console.error),
+  };
+})();

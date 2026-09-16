@@ -3,12 +3,21 @@
 import init, { Session, formatTime, parseInvite } from "./pkg/together_web.js";
 import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
 import { canStream } from "./stream.js";
-import { Toasts, avatar, copyText, h, icon, paintRange, prefs, renderBadge, setIcon } from "./ui.js";
+import { Toasts, avatar, copyText, h, icon, log, paintRange, prefs, renderBadge, setIcon } from "./ui.js";
 
 const wasm = init();
-wasm.catch((error) => console.error("together: could not load WebAssembly", error));
+wasm.catch((error) => log.error("could not load WebAssembly", error));
 
 const $ = (selector, root = document) => root.querySelector(selector);
+
+/** Seconds of media buffered past the playhead. */
+function bufferedAhead(video) {
+  const { buffered, currentTime } = video;
+  for (let i = 0; i < buffered.length; i++) {
+    if (buffered.start(i) <= currentTime && currentTime <= buffered.end(i)) return +(buffered.end(i) - currentTime).toFixed(2);
+  }
+  return 0;
+}
 
 const screens = {
   landing: $("#landing"),
@@ -278,6 +287,14 @@ class Room {
     // Streaming joiners don't know what they're watching until someone in the room offers it.
     this.awaitingFilm = Boolean(stream);
     setBusy(from, true);
+    // The room screen formats times through wasm, so it can't open before wasm has loaded.
+    try {
+      await wasm;
+    } catch {
+      setBusy(from, false);
+      setError(from, "together couldn’t load. Reload the page to try again.");
+      return;
+    }
 
     if (source) {
       this.show(source);
@@ -306,9 +323,16 @@ class Room {
         duration: source && this.video.duration,
         size: source?.size,
       };
+      log.info(invite ? "joining a room" : "hosting a room", {
+        stream: options.stream,
+        relay: options.relay ?? "public",
+        title: options.title,
+        duration: options.duration,
+        size: options.size,
+      });
       this.session = invite ? await Session.join(invite, options) : await Session.host(options);
     } catch (error) {
-      console.error("together:", error);
+      log.error("couldn’t open the room", error);
       this.close();
       showScreen(from === screens.invited ? "invited" : "landing");
       setError(from, error.message || "Couldn’t open the room.");
@@ -332,6 +356,7 @@ class Room {
     const session = this.session;
     this.session = undefined;
     if (session) {
+      log.info("leaving the room");
       // Don't keep the user waiting on a network that's gone.
       await Promise.race([session.leave(), new Promise((r) => setTimeout(r, 2000))]);
       session.free();
@@ -403,6 +428,8 @@ class Room {
   // --- Room events ---------------------------------------------------------------------------
 
   handle(event) {
+    if (event.type === "status") log.trace("status", event);
+    else log.info(`event: ${event.type}`, event);
     switch (event.type) {
       case "status":
         this.me = event.me;
@@ -542,6 +569,7 @@ class Room {
 
   toggleReady() {
     if (!this.session || !this.ready?.open) return;
+    log.info(this.ready.mine ? "you pressed: not ready" : "you pressed: ready");
     this.session.setReady(!this.ready.mine);
     // Don't wait for the next status to acknowledge the press.
     this.ready = { ...this.ready, mine: !this.ready.mine };
@@ -727,6 +755,12 @@ class Room {
     for (const type of ["play", "pause", "durationchange", "loadedmetadata", "volumechange"]) {
       video.addEventListener(type, () => this.syncControls());
     }
+    for (const type of ["play", "playing", "pause", "waiting", "stalled", "seeking", "seeked", "ratechange", "ended", "emptied"]) {
+      video.addEventListener(type, () =>
+        log.debug(`video: ${type}`, { at: video.currentTime, rate: video.playbackRate, readyState: video.readyState, buffered: bufferedAhead(video) }),
+      );
+    }
+    video.addEventListener("error", () => log.warn("video: error", video.error));
     video.addEventListener("play", () => this.renderOverlay());
     video.addEventListener("pause", () => {
       this.renderOverlay();
@@ -810,6 +844,7 @@ class Room {
   togglePlay() {
     const session = this.session;
     if (!session) return;
+    log.info("you pressed: play/pause", { blocked: this.blocked, ended: this.video.ended, paused: this.video.paused, at: this.video.currentTime });
     if (this.blocked) {
       session.resumePlayback();
     } else if (this.video.ended) {
@@ -827,6 +862,7 @@ class Room {
   seekTo(seconds) {
     const duration = Number.isFinite(this.video.duration) ? this.video.duration : Infinity;
     const target = Math.min(Math.max(0, seconds), duration);
+    log.info(`you seeked to ${target.toFixed(3)}s`, { from: this.video.currentTime });
     this.pendingSeek = { target, at: performance.now() };
     this.session?.seek(target);
   }
