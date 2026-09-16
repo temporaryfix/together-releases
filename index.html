@@ -175,6 +175,18 @@
     </div>
   </main>
 
+  <!-- Files dragged over the window: the whole window takes them. A pointer-only affordance; the
+       buttons that open a file do the same for everyone else. -->
+  <div class="drop" data-drop aria-hidden="true">
+    <div class="drop-body">
+      <svg class="drop-mark" viewBox="0 0 64 28">
+        <circle class="drop-you" cx="25" cy="14" r="11"/>
+        <circle class="drop-friend" cx="39" cy="14" r="10.25"/>
+      </svg>
+      <p class="drop-title" data-drop-title></p>
+    </div>
+  </div>
+
   <noscript><p class="noscript">together needs JavaScript and WebAssembly to run.</p></noscript>
 </body>
 </html>

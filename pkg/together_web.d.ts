@@ -151,7 +151,8 @@ export class Session {
      */
     pause(): void;
     /**
-     * Play for everyone.
+     * Play for everyone. Call it from the click or key handler, so this browser may start the
+     * video when the room does.
      */
     play(): void;
     /**
@@ -166,6 +167,9 @@ export class Session {
     /**
      * Say whether we're ready to start, or take it back. Once everyone in the room is ready,
      * playback is scheduled for a shared instant and every screen starts on the same frame.
+     *
+     * Call it from the click or key handler: the countdown ends seconds later, and Safari only
+     * starts a video with sound then if it was played during a click.
      */
     setReady(ready: boolean): void;
     /**
@@ -235,16 +239,16 @@ export interface InitOutput {
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21882: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21884: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11768: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_13470: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_626: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_9192: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11563: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12681: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12753: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21722: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21893: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21895: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11778: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_13480: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_632: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_9202: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11573: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12691: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12763: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21733: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

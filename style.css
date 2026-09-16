@@ -13,8 +13,7 @@
   --fill-hover: rgb(255 255 255 / 0.11);
   --glass: rgb(0 0 0 / 0.58);
   --glass-solid: rgb(22 22 22 / 0.94);
-  /* The only hues: something needs a moment, or something is wrong. */
-  --wait: #e6b95f;
+  /* The only hue: something you typed needs fixing. */
   --wrong: #ef7466;
 
   --font: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
@@ -30,7 +29,18 @@
   --radius-card: 20px;
   --radius-field: 12px;
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in: cubic-bezier(0.4, 0, 1, 1);
+  /* A spring with a little give: things arrive, overshoot a touch and settle. */
+  --spring: cubic-bezier(0.34, 1.36, 0.64, 1);
   --focus: 0 0 0 2px var(--black), 0 0 0 4px var(--white);
+}
+
+@supports (transition-timing-function: linear(0, 1)) {
+  :root {
+    --spring: linear(0, 0.013 1.2%, 0.052 2.5%, 0.2 5.3%, 0.408 8.4%, 0.62 11.7%, 0.79 15%, 0.912 18.4%,
+        0.99 21.8%, 1.035 25.3%, 1.056 28.9%, 1.058 32.8%, 1.047 37.2%, 1.028 42.4%, 1.01 49%,
+        0.999 57.6%, 0.996 68%, 1);
+  }
 }
 
 *,
@@ -93,6 +103,20 @@ input {
   flex: none;
 }
 
+/* Arriving: a short rise into place. Screens use it staggered, one beat after another. */
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
 /* ---------- Buttons and fields ---------- */
 
 .btn {
@@ -107,11 +131,12 @@ input {
   font-weight: 600;
   cursor: pointer;
   white-space: nowrap;
-  transition: background-color 0.15s, color 0.15s, transform 0.1s;
+  transition: background-color 0.15s, color 0.15s, transform 0.35s var(--spring);
 }
 
 .btn:active {
-  transform: scale(0.97);
+  transform: scale(0.96);
+  transition-duration: 0.08s;
 }
 
 .btn-primary {
@@ -190,6 +215,7 @@ input {
 
 .input[aria-invalid="true"] {
   border-color: var(--wrong);
+  animation: no 0.4s var(--ease-out);
 }
 
 .input-mono {
@@ -205,6 +231,10 @@ input {
 
 .field-error:empty {
   display: none;
+}
+
+.field-error:not(:empty) {
+  animation: rise-in 0.3s var(--ease-out);
 }
 
 .quiet-link {
@@ -285,12 +315,43 @@ input {
   justify-items: center;
   gap: 0.9rem;
   width: 100%;
-  padding: 2.25rem 1.5rem 1.75rem;
-  border: 1px solid var(--line);
-  border-radius: 24px;
-  background: rgb(255 255 255 / 0.04);
+  padding: 0.5rem 0 1rem;
   text-align: center;
-  transition: border-color 0.2s, background-color 0.2s;
+}
+
+/* Each time a screen appears, its parts arrive one beat after another. */
+.screen:not(.room) .masthead,
+.middle > *,
+.stage-card > * {
+  animation: rise-in 0.55s var(--ease-out) calc(var(--beat, 0) * 70ms) backwards;
+}
+
+.middle > :nth-child(2) {
+  --beat: 1;
+}
+
+.stage-card > :nth-child(2) {
+  --beat: 2;
+}
+
+.stage-card > :nth-child(n + 3) {
+  --beat: 3;
+}
+
+.middle > :nth-child(n + 3) {
+  --beat: 4;
+}
+
+.masthead {
+  animation-name: fade-in;
+}
+
+.middle > .stage-card {
+  animation: none;
+}
+
+.stage-card > :first-child {
+  --beat: 1;
 }
 
 .stage-card .btn-large {
@@ -309,9 +370,8 @@ input {
   box-shadow: var(--focus);
 }
 
-.dropzone.is-dragging {
-  border-color: var(--white);
-  background: rgb(255 255 255 / 0.08);
+.dropzone {
+  transition: opacity 0.3s var(--ease-out);
 }
 
 .dropzone.is-busy {
@@ -344,6 +404,10 @@ input {
 .name-row strong {
   color: var(--text);
   font-weight: 600;
+}
+
+.name-row {
+  animation: fade-in 0.25s var(--ease-out);
 }
 
 .name-input {
@@ -396,6 +460,33 @@ input {
 
 .chrome {
   transition: opacity 0.4s var(--ease-out), transform 0.4s var(--ease-out);
+}
+
+/* Into the room: the film fades up and the chrome settles in from the edges around it. */
+.room:not([hidden]) .video {
+  animation: fade-in 0.6s var(--ease-out);
+}
+
+.room:not([hidden]) .topbar {
+  animation: settle-down 0.55s var(--ease-out) 0.1s backwards;
+}
+
+.room:not([hidden]) .controls {
+  animation: settle-up 0.55s var(--ease-out) 0.15s backwards;
+}
+
+@keyframes settle-down {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes settle-up {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
 }
 
 .stage.is-idle {
@@ -455,7 +546,8 @@ input {
   flex: none;
 }
 
-/* People */
+/* People: one circle each. Yours is solid and everyone else's is drawn in outline, like the mark.
+   How someone is doing is drawn around their circle, never in a second dot or a colour. */
 
 .people {
   display: flex;
@@ -470,78 +562,185 @@ input {
 .person {
   display: flex;
   align-items: center;
-  gap: 0.5rem;
-  padding: 4px 12px 4px 4px;
+  gap: 0.45rem;
+  padding: 3px 12px 3px 3px;
   border-radius: 999px;
   background: var(--glass);
   backdrop-filter: blur(14px);
-  animation: arrive 0.4s var(--ease-out);
+  animation: arrive 0.5s var(--spring) calc(var(--i, 0) * 60ms) backwards;
+}
+
+.person.is-leaving {
+  animation: depart 0.3s var(--ease-in) forwards;
 }
 
 @keyframes arrive {
   from {
     opacity: 0;
-    transform: scale(0.92);
+    transform: scale(0.6);
   }
 }
 
-/* People are told apart by a whisper of their own hue, not a paint box. */
+@keyframes depart {
+  to {
+    opacity: 0;
+    transform: scale(0.6);
+  }
+}
+
 .avatar {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   flex: none;
   border-radius: 50%;
-  background: hsl(var(--hue, 220) 16% 78%);
-  color: var(--black);
-  font: 650 0.7rem / 1 var(--font);
+  box-shadow: inset 0 0 0 1.5px var(--text);
+  color: var(--text);
+  font: 650 0.66rem / 1 var(--font);
   letter-spacing: 0.02em;
+  transition: opacity 0.2s, transform 0.3s var(--spring);
 }
 
-.person-face {
+.avatar.is-you {
+  background: var(--text);
+  box-shadow: none;
+  color: var(--black);
+}
+
+.face {
   position: relative;
   display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
   flex: none;
 }
 
-/* A quiet tick that settles onto the avatar when someone says they're ready. */
-.person-mark {
-  position: absolute;
-  right: -3px;
-  bottom: -3px;
-  width: 14px;
-  height: 14px;
-  padding: 2px;
-  border-radius: 50%;
-  background: var(--white);
-  color: var(--black);
-  box-shadow: 0 0 0 2px var(--black);
+.face > * {
+  grid-area: 1 / 1;
+}
+
+/* The ring around a circle: closed when they're ready, turning while the room waits for them,
+   broken while their sync is still being measured or is off. */
+.face-ring {
+  width: 34px;
+  height: 34px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 100;
   opacity: 0;
-  transform: scale(0.5);
-  transition: opacity 0.2s var(--ease-out), transform 0.2s var(--ease-out);
+  transform: rotate(-90deg);
+  transition: stroke-dashoffset 0.55s var(--ease-out), opacity 0.25s, stroke-dasharray 0.3s;
 }
 
-.person[data-state="ready"] .person-mark {
+.person[data-sync="unknown"] .face-ring,
+.person[data-sync="poor"] .face-ring {
+  stroke-dasharray: 2 6;
+  stroke-dashoffset: 0;
+  opacity: 0.45;
+}
+
+.person[data-state="ready"] .face-ring {
+  stroke-dasharray: 100 100;
+  stroke-dashoffset: 0;
   opacity: 1;
-  transform: none;
 }
 
-/* Someone the room is waiting for: a ring that breathes while they catch up. */
+.person[data-state="stalled"] .face-ring {
+  stroke-dasharray: 14 11;
+  stroke-dashoffset: 0;
+  opacity: 0.9;
+  animation: turn 2.4s linear infinite;
+}
+
 .person[data-state="stalled"] .avatar {
-  box-shadow: 0 0 0 2px var(--wait);
-  animation: breathe 2s ease-in-out infinite;
+  animation: breathe 2.4s ease-in-out infinite;
+}
+
+@keyframes turn {
+  from {
+    transform: rotate(-90deg);
+  }
+  to {
+    transform: rotate(270deg);
+  }
 }
 
 @keyframes breathe {
   50% {
-    opacity: 0.45;
+    opacity: 0.5;
+    transform: scale(0.92);
+  }
+}
+
+/* The moment someone says they're ready: their initials make way for a tick, which draws itself
+   and then hands back. */
+.face-tick {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+}
+
+.face.is-you .face-tick {
+  stroke: var(--black);
+}
+
+.person.is-confirming .avatar {
+  animation: make-way 1.3s var(--ease-out);
+}
+
+.person.is-confirming .face-tick {
+  animation: tick 1.3s var(--ease-out);
+}
+
+.person.is-confirming .face {
+  animation: pop 0.5s var(--spring);
+}
+
+@keyframes make-way {
+  12%,
+  80% {
+    color: transparent;
+  }
+}
+
+@keyframes tick {
+  0% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  30%,
+  78% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+  100% {
+    opacity: 0;
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes pop {
+  40% {
+    transform: scale(1.14);
   }
 }
 
 .person-text {
   display: grid;
-  line-height: 1.2;
+  line-height: 1.15;
 }
 
 .person-name {
@@ -553,37 +752,20 @@ input {
   white-space: nowrap;
 }
 
-/* Sync badge: being in sync is the normal state and says so quietly; only trouble is coloured. */
-
-.badge {
-  --tone: var(--muted);
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
-  color: var(--tone);
+/* Only there when something is off: "buffering", "±1.2s". */
+.person-note {
+  color: var(--muted);
   font-size: 0.72rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
 
-.badge[data-level="fair"] {
-  --tone: var(--wait);
+.person-note:empty {
+  display: none;
 }
 
-.badge[data-level="poor"] {
-  --tone: var(--wrong);
-}
-
-.badge-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: currentColor;
-}
-
-.badge[data-level="unknown"] .badge-dot {
-  background: transparent;
-  box-shadow: inset 0 0 0 1.5px currentColor;
+.person-note:not(:empty) {
+  animation: rise-in 0.3s var(--ease-out);
 }
 
 /* The ready check: the one thing left to do once friends are here, so it's big and centred. */
@@ -604,13 +786,13 @@ input {
   box-shadow: 0 0 0 1px var(--line), 0 24px 64px rgb(0 0 0 / 0.5);
   text-align: center;
   transform: translateX(-50%);
-  animation: rise 0.35s var(--ease-out);
+  animation: rise 0.5s var(--spring);
 }
 
 @keyframes rise {
   from {
     opacity: 0;
-    transform: translate(-50%, 10px);
+    transform: translate(-50%, 16px) scale(0.96);
   }
 }
 
@@ -773,7 +955,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   background: var(--glass-solid);
   backdrop-filter: blur(16px);
   box-shadow: 0 0 0 1px var(--line), 0 12px 32px rgb(0 0 0 / 0.4);
-  animation: toast-in 0.35s var(--ease-out);
+  animation: toast-in 0.45s var(--spring);
 }
 
 .toast.is-plain {
@@ -790,13 +972,13 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 
 .toast.is-leaving {
-  animation: toast-out 0.25s ease-in forwards;
+  animation: toast-out 0.25s var(--ease-in) forwards;
 }
 
 @keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(-8px) scale(0.97);
+    transform: translateY(-10px) scale(0.94);
   }
 }
 
@@ -827,7 +1009,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 
 .notice-icon {
   margin-top: 1px;
-  color: var(--wait);
 }
 
 .notice-body {
@@ -881,12 +1062,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   pointer-events: auto;
 }
 
-@keyframes fade-in {
-  from {
-    opacity: 0;
-  }
-}
-
 .overlay-card {
   display: grid;
   justify-items: center;
@@ -898,6 +1073,14 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   backdrop-filter: blur(24px);
   box-shadow: 0 0 0 1px var(--line), 0 24px 64px rgb(0 0 0 / 0.5);
   text-align: center;
+  animation: card-in 0.5s var(--spring);
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
 }
 
 /* For states that interrupt a film rather than open one: the same card, said more softly. */
@@ -988,17 +1171,49 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 
 .countdown-number {
+  grid-area: 1 / 1;
+  place-self: center;
   font: 500 clamp(6rem, 22vw, 11rem) / 0.9 var(--font);
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
-  animation: count-in 0.6s var(--ease-out) both;
+  animation: count-in 0.55s var(--spring) both;
 }
 
 @keyframes count-in {
   from {
     opacity: 0;
-    transform: scale(1.18);
-    filter: blur(6px);
+    transform: scale(1.35);
+    filter: blur(8px);
+  }
+}
+
+/* Each second closes a hairline circle around its number, so the wait has a visible end. */
+.countdown-sweep {
+  grid-area: 1 / 1;
+  width: clamp(11rem, 32vw, 16rem);
+  aspect-ratio: 1;
+  overflow: visible;
+  fill: none;
+  stroke: var(--white);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transform: rotate(-90deg);
+}
+
+.countdown-sweep circle:first-child {
+  opacity: 0.16;
+}
+
+.countdown-sweep circle:last-child {
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  animation: sweep 1s linear forwards;
+  animation-delay: var(--into, 0ms);
+}
+
+@keyframes sweep {
+  to {
+    stroke-dashoffset: 0;
   }
 }
 
@@ -1008,7 +1223,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 }
 
 .countdown-ring {
-  width: clamp(6rem, 22vw, 11rem);
+  width: clamp(11rem, 32vw, 16rem);
   aspect-ratio: 1;
   border: 1.5px solid var(--white);
   border-radius: 50%;
@@ -1017,12 +1232,12 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 
 @keyframes go-ring {
   from {
-    opacity: 0.6;
-    transform: scale(0.7);
+    opacity: 0.9;
+    transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: scale(1.6);
+    transform: scale(1.9);
   }
 }
 
@@ -1082,7 +1297,7 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 .popover:popover-open {
   display: grid;
   gap: 0.6rem;
-  animation: toast-in 0.25s var(--ease-out);
+  animation: toast-in 0.4s var(--spring);
 }
 
 .popover-title {
@@ -1110,6 +1325,167 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   min-height: 40px;
 }
 
+/* ---------- Dropping a file anywhere ---------- */
+
+/* The whole window, dimmed, with a soft edge drawn just inside it: this is where it goes. */
+.drop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: rgb(0 0 0 / 0.8);
+  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(24px);
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.22s var(--ease-out), visibility 0s linear 0.22s;
+}
+
+/* The page steps back too, so the words read even where there's no blur behind them. */
+.screen {
+  transition: opacity 0.25s var(--ease-out);
+}
+
+body:has(> .drop[data-state="accept"], > .drop[data-state="refuse"]) .screen {
+  opacity: 0.35;
+}
+
+.drop::before {
+  content: "";
+  position: absolute;
+  inset: max(14px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom))
+    max(14px, env(safe-area-inset-left));
+  border-radius: 28px;
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.5);
+  opacity: 0;
+  transform: scale(1.03);
+  transition: transform 0.45s var(--spring), opacity 0.3s var(--ease-out), box-shadow 0.3s;
+}
+
+.drop[data-state] {
+  opacity: 1;
+  visibility: visible;
+  transition: opacity 0.18s var(--ease-out);
+}
+
+.drop[data-state="accept"]::before {
+  opacity: 1;
+  transform: none;
+}
+
+.drop[data-state="refuse"]::before {
+  opacity: 1;
+  transform: scale(0.99);
+  box-shadow: inset 0 0 0 1.5px rgb(255 255 255 / 0.14);
+}
+
+/* Let go: the edge settles and everything fades back to the page. */
+.drop[data-state="taken"] {
+  opacity: 0;
+  transition: opacity 0.4s var(--ease-out) 0.05s;
+}
+
+.drop-body {
+  display: grid;
+  justify-items: center;
+  gap: 1.1rem;
+  text-align: center;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: transform 0.45s var(--spring);
+}
+
+.drop[data-state] .drop-body {
+  transform: none;
+}
+
+.drop-mark {
+  width: 160px;
+  height: 70px;
+  overflow: visible;
+}
+
+.drop-you,
+.drop-friend {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 0.5s var(--spring), opacity 0.3s, stroke-dasharray 0.3s;
+}
+
+.drop-you {
+  fill: var(--text);
+}
+
+.drop-friend {
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.5;
+}
+
+/* A video on its way: the two of you lean in, ready. */
+.drop[data-state="accept"] .drop-you {
+  transform: translateX(3px);
+}
+
+.drop[data-state="accept"] .drop-friend {
+  transform: translateX(-3px);
+  animation: lean 1.6s ease-in-out 0.5s infinite alternate;
+}
+
+@keyframes lean {
+  from {
+    transform: translateX(-3px);
+  }
+  to {
+    transform: translateX(-6px);
+  }
+}
+
+/* Anything else: they drift apart and the friend goes faint. */
+.drop[data-state="refuse"] .drop-you {
+  transform: translateX(-6px);
+  opacity: 0.4;
+}
+
+.drop[data-state="refuse"] .drop-friend {
+  transform: translateX(6px);
+  opacity: 0.4;
+  stroke-dasharray: 3 3;
+}
+
+.drop[data-state="taken"] .drop-you,
+.drop[data-state="taken"] .drop-friend {
+  transform: scale(0.9);
+}
+
+.drop-title {
+  font: 600 var(--step-3) / 1.1 var(--font);
+  letter-spacing: -0.015em;
+  transition: color 0.3s;
+}
+
+.drop[data-state="refuse"] .drop-body {
+  animation: no 0.45s var(--ease-out);
+}
+
+@keyframes no {
+  25% {
+    transform: translateX(-5px);
+  }
+  55% {
+    transform: translateX(4px);
+  }
+  80% {
+    transform: translateX(-2px);
+  }
+}
+
+.drop[data-state="refuse"] .drop-title {
+  color: var(--muted);
+}
+
 .noscript {
   padding: 2rem;
   text-align: center;
@@ -1123,10 +1499,14 @@ input[type="range"]:focus-visible::-moz-range-thumb {
     display: none;
   }
 
+  .people {
+    gap: 0;
+  }
+
   .person {
-    margin-left: -10px;
-    padding: 2px;
-    box-shadow: 0 0 0 2px var(--black);
+    padding: 0;
+    background: none;
+    backdrop-filter: none;
   }
 
   .topbar .btn-primary {

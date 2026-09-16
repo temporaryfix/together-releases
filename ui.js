@@ -31,17 +31,18 @@ export function setIcon(svg, name) {
   svg.querySelector("use").setAttribute("href", `#${name}`);
 }
 
-/** Circle with initials, tinted by the person's hue. */
-export function avatar(person) {
-  return h("span", { class: "avatar", style: { "--hue": person.hue }, "aria-hidden": "true" }, person.initials);
+/** Whether the person has asked for less motion. */
+export const calm = matchMedia("(prefers-reduced-motion: reduce)");
+
+/** A one-off flourish on `el` that says something just changed; skipped for calm motion. */
+export function nudge(el, keyframes, options = {}) {
+  if (calm.matches || !el.animate) return;
+  el.animate(keyframes, { duration: 320, easing: "cubic-bezier(0.34, 1.36, 0.64, 1)", ...options });
 }
 
-/** The sync badge from a `SyncBadge` value. */
-export function renderBadge(el, badge) {
-  el.dataset.level = badge.level;
-  el.title = badge.detail;
-  const label = el.querySelector("[data-label]");
-  if (label.textContent !== badge.label) label.textContent = badge.label;
+/** A person's circle: yours is solid, everyone else's drawn in outline. Initials, no colour. */
+export function avatar(person, { you = false } = {}) {
+  return h("span", { class: you ? "avatar is-you" : "avatar", "aria-hidden": "true" }, person.initials);
 }
 
 /** Transient messages, newest at the bottom, at most a few at a time. */

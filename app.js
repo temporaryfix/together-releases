@@ -3,7 +3,7 @@
 import init, { Session, formatTime, parseInvite } from "./pkg/together_web.js";
 import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
 import { canStream } from "./stream.js";
-import { Toasts, avatar, copyText, h, icon, log, paintRange, prefs, renderBadge, setIcon } from "./ui.js";
+import { Toasts, avatar, calm, copyText, h, icon, log, nudge, paintRange, prefs, setIcon } from "./ui.js";
 
 const wasm = init();
 wasm.catch((error) => log.error("could not load WebAssembly", error));
@@ -114,36 +114,128 @@ class NameField {
 }
 
 // ---------------------------------------------------------------------------------------------
-// Picking a file: click, keyboard or drag and drop.
+// Picking a file: click, keyboard, or dropped anywhere on the window (see `Drop` below).
 
-function wireDropzone(screen, onFile) {
-  const zone = $("[data-dropzone]", screen);
+function wireFileInput(screen, onFile) {
   const input = $("[data-file]", screen);
   input.addEventListener("change", () => {
     const file = pickFile(input.files);
     input.value = "";
     if (file) onFile(file);
   });
-  let depth = 0;
-  zone.addEventListener("dragenter", (e) => {
-    e.preventDefault();
-    depth++;
-    zone.classList.add("is-dragging");
-  });
-  zone.addEventListener("dragleave", () => {
-    if (--depth <= 0) zone.classList.remove("is-dragging");
-  });
-  zone.addEventListener("drop", () => {
-    depth = 0;
-    zone.classList.remove("is-dragging");
-  });
-  // Accept drops anywhere on the screen, not just the zone.
-  screen.addEventListener("dragover", (e) => e.preventDefault());
-  screen.addEventListener("drop", (e) => {
-    e.preventDefault();
-    const file = pickFile(e.dataTransfer?.files);
-    if (file) onFile(file);
-  });
+}
+
+const VIDEO_NAME = /\.(mp4|m4v|mov|webm|mkv|ogv|avi)$/i;
+/** Types that say nothing either way: some systems don't know what an .mkv is. */
+const vague = (type) => !type || type === "application/octet-stream";
+const videoType = (type) => type.startsWith("video/") || type === "application/x-matroska";
+
+/** The video among dropped files: the first that says it's one, else one that might be. */
+function videoFrom(files) {
+  const list = [...(files ?? [])];
+  return list.find((f) => videoType(f.type) || VIDEO_NAME.test(f.name)) ?? list.find((f) => vague(f.type));
+}
+
+/**
+ * Files dragged anywhere over the window. The whole window is the target, with a word about what
+ * dropping will do before you let go, and a refusal when the browser can already tell it isn't a
+ * video. Everything else that gets dragged (text, links) is left alone.
+ */
+class Drop {
+  constructor(el) {
+    this.el = el;
+    this.title = $("[data-drop-title]", el);
+    this.depth = 0;
+    const files = (e) => Array.from(e.dataTransfer?.types ?? []).includes("Files");
+    window.addEventListener("dragenter", (e) => {
+      if (!files(e)) return;
+      e.preventDefault();
+      this.depth++;
+      this.over(e);
+    });
+    window.addEventListener("dragover", (e) => {
+      if (!files(e)) return;
+      // Always, so a file let go of anywhere is never opened by the browser in place of the app.
+      e.preventDefault();
+      this.over(e);
+    });
+    window.addEventListener("dragleave", (e) => {
+      if (!files(e)) return;
+      // Entering a child fires before leaving its parent, so the count only reaches zero on the
+      // way out of the window.
+      this.depth = Math.max(0, this.depth - 1);
+      if (this.depth === 0) this.end();
+    });
+    window.addEventListener("drop", (e) => {
+      if (!files(e)) return;
+      e.preventDefault();
+      this.dropped(e);
+    });
+    window.addEventListener("dragend", () => this.end());
+    window.addEventListener("blur", () => this.end());
+    window.addEventListener("keydown", (e) => e.key === "Escape" && this.end());
+  }
+
+  /** What dropping here would do, for whichever screen is showing. */
+  target() {
+    if (room.isOpen) {
+      // Someone watching the room's copy can switch to their own, as the button offers.
+      if (!room.isHost && room.source?.kind !== "file") {
+        return { title: "Drop your copy", take: (file) => room.leave({ keepInvite: true }).then(() => joinWith(file)) };
+      }
+      return { refuse: "Leave the room to change the video" };
+    }
+    // Opening a room: the file is already chosen.
+    if (room.active) return undefined;
+    if (!screens.invited.hidden) return { title: "Drop your copy", take: joinWith, screen: screens.invited };
+    return { title: "Drop to watch", take: startWith, screen: screens.landing };
+  }
+
+  /** "video", "other", or "unknown" when the browser won't say until the drop (Safari). */
+  verdict(dataTransfer) {
+    const items = Array.from(dataTransfer.items ?? []).filter((item) => item.kind === "file");
+    if (items.length === 0) return "unknown";
+    if (items.some((item) => videoType(item.type))) return "video";
+    return items.some((item) => vague(item.type)) ? "unknown" : "other";
+  }
+
+  over(e) {
+    const target = this.target();
+    const refusal = !target ? "" : target.refuse ?? (this.verdict(e.dataTransfer) === "other" ? "That’s not a video" : "");
+    e.dataTransfer.dropEffect = target && !refusal ? "copy" : "none";
+    // Keep watching: some browsers never say when a drag leaves the window.
+    clearTimeout(this.watchdog);
+    this.watchdog = setTimeout(() => this.end(), 1000);
+    if (!target) return this.end();
+    const state = refusal ? "refuse" : "accept";
+    const title = refusal || target.title;
+    if (this.title.textContent !== title) this.title.textContent = title;
+    if (this.el.dataset.state !== state) this.el.dataset.state = state;
+  }
+
+  dropped(e) {
+    const target = this.target();
+    const accepted = this.el.dataset.state === "accept";
+    this.depth = 0;
+    clearTimeout(this.watchdog);
+    if (!target || target.refuse || !accepted) return this.end();
+    const file = videoFrom(e.dataTransfer.files);
+    if (!file) {
+      this.end();
+      if (target.screen) setError(target.screen, "That file isn’t a video.");
+      return;
+    }
+    // Taken: the mark closes up as the overlay goes.
+    this.el.dataset.state = "taken";
+    setTimeout(() => this.el.dataset.state === "taken" && this.el.removeAttribute("data-state"), 420);
+    target.take(file);
+  }
+
+  end() {
+    this.depth = 0;
+    clearTimeout(this.watchdog);
+    if (this.el.dataset.state && this.el.dataset.state !== "taken") this.el.removeAttribute("data-state");
+  }
 }
 
 function setError(screen, message = "") {
@@ -171,7 +263,7 @@ function startWith(file) {
 }
 
 landingName.onCommit = () => pendingFile && startWith(pendingFile);
-wireDropzone(screens.landing, startWith);
+wireFileInput(screens.landing, startWith);
 
 const joinForm = $("[data-join-form]");
 const inviteInput = $("[data-invite-input]");
@@ -219,7 +311,7 @@ function joinWith(file) {
 }
 
 invitedName.onCommit = () => pendingJoin?.();
-wireDropzone(screens.invited, joinWith);
+wireFileInput(screens.invited, joinWith);
 $("[data-stream]", screens.invited).addEventListener("click", () => joinWith());
 // A browser can only stream the room's copy through a relay of your own, so without one, don't
 // offer it: go straight to opening your own copy rather than finding out after a wait.
@@ -506,37 +598,52 @@ class Room {
       ? [{ who: { ...this.me, name: "You" }, sync: mine, ready: this.ready?.mine === true, stalled: held, you: true }]
       : [];
     rows.push(...this.peers.values());
-    const existing = new Map([...this.people.children].map((li) => [li.dataset.id, li]));
+    // Someone on their way out is still fading, and no longer counts.
+    const present = [...this.people.children].filter((li) => !li.classList.contains("is-leaving"));
+    const existing = new Map(present.map((li) => [li.dataset.id, li]));
     const keep = new Set();
     rows.forEach((row, index) => {
       const id = row.you ? "me" : row.who.id;
       keep.add(id);
       let li = existing.get(id);
-      if (!li) {
-        const badge = h("span", { class: "badge", "data-level": "unknown" }, h("span", { class: "badge-dot" }), h("span", { "data-label": "" }));
+      const arriving = !li;
+      if (arriving) {
         li = h(
           "li",
-          { class: "person", "data-id": id },
-          h("span", { class: "person-face" }, avatar(row.who), icon("i-check", "person-mark")),
-          h("span", { class: "person-text" }, h("span", { class: "person-name" }, row.who.name), badge),
+          { class: "person", "data-id": id, style: { "--i": index } },
+          face(row.who, row.you),
+          h("span", { class: "person-text", "aria-hidden": "true" }, h("span", { class: "person-name" }, row.who.name), h("span", { class: "person-note" })),
+          h("span", { class: "visually-hidden", "data-status": "" }),
         );
       }
-      if (this.people.children[index] !== li) this.people.insertBefore(li, this.people.children[index] ?? null);
+      const live = [...this.people.children].filter((el) => !el.classList.contains("is-leaving"));
+      if (live[index] !== li) this.people.insertBefore(li, live[index] ?? null);
       const sync = row.sync ?? { level: "unknown", label: "syncing…", detail: "Measuring sync" };
-      renderBadge($(".badge", li), sync);
       // Being stuck is the more urgent of the two, and a stalled player isn't waiting to start.
       const state = row.stalled ? "stalled" : row.ready ? "ready" : "";
-      if (li.dataset.state !== state) li.dataset.state = state;
+      if (li.dataset.state !== state) {
+        // Saying you're ready gets a tick, once, as it happens; arriving already ready doesn't.
+        if (state === "ready" && !arriving) celebrateReady(li);
+        li.dataset.state = state;
+      }
+      if (li.dataset.sync !== sync.level) li.dataset.sync = sync.level;
+      // Words only when something is off; the circle says the rest.
+      const note = row.stalled || sync.level === "poor" || (row.you && this.blocked) ? sync.label : "";
+      const noteEl = $(".person-note", li);
+      if (noteEl.textContent !== note) noteEl.textContent = note;
       const aside = row.ready && !row.stalled ? " · ready to start" : "";
       // How we reach them: direct is worth saying too, so "nothing shown" never has to mean
       // "we couldn't tell" and "it's fine" at the same time.
       const via = row.link?.type === "relayed" ? ` · via relay ${row.link.relay}` : row.link?.type === "direct" ? " · direct" : "";
-      li.title = `${row.who.name}: ${sync.detail}${aside}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}${via}`;
-      li.setAttribute("aria-label", li.title);
+      const title = `${row.who.name}: ${sync.detail}${aside}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}${via}`;
+      if (li.title !== title) {
+        li.title = title;
+        $("[data-status]", li).textContent = title;
+      }
       const link = row.link?.type ?? "";
       if (li.dataset.link !== link) li.dataset.link = link;
     });
-    for (const [id, li] of existing) if (!keep.has(id)) li.remove();
+    for (const [id, li] of existing) if (!keep.has(id)) depart(li);
   }
 
   /** Whether we've been here long enough for what happens to be news rather than arrival. */
@@ -556,8 +663,16 @@ class Room {
     const others = this.waiting?.type === "ready" ? this.waiting.message : "";
     const title = mine ? "You’re ready" : "Ready to watch?";
     const note = mine ? others || `${ready.count} of ${ready.total} ready` : "It starts for everyone once you’re all ready.";
-    if (this.readyTitle.textContent !== title) this.readyTitle.textContent = title;
-    if (this.readyNote.textContent !== note) this.readyNote.textContent = note;
+    if (this.readyTitle.textContent !== title) {
+      // Answering changes what the prompt says; let it land rather than blink.
+      const answered = this.readyTitle.textContent !== "";
+      this.readyTitle.textContent = title;
+      if (answered) nudge(this.readyTitle, [{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }]);
+    }
+    if (this.readyNote.textContent !== note) {
+      this.readyNote.textContent = note;
+      nudge(this.readyNote, [{ opacity: 0 }, { opacity: 1 }], { duration: 400, easing: "ease-out" });
+    }
     this.readyButton.setAttribute("aria-pressed", String(mine));
     this.readyButton.classList.toggle("btn-primary", !mine);
     this.readyButton.classList.toggle("btn-secondary", mine);
@@ -597,7 +712,7 @@ class Room {
   showMismatch(event) {
     $("[data-mismatch-title]", this.root).textContent = event.message;
     $("[data-mismatch-text]", this.root).textContent =
-      "Their file doesn’t match yours. Playback still stays in sync, so check you both picked the same file.";
+      "Check you both opened the same file.";
     this.mismatch.hidden = false;
   }
 
@@ -714,7 +829,7 @@ class Room {
             : tick === 0
               // The film is the payoff; all that is left is the ring opening out of the last beat.
               ? h("div", { class: "countdown is-go" }, h("span", { class: "countdown-ring" }))
-              : h("div", { class: "countdown" }, h("span", { class: "countdown-number" }, String(tick))),
+              : h("div", { class: "countdown" }, sweep(countdown.left), h("span", { class: "countdown-number" }, String(tick))),
       };
     }
     if (this.waiting?.type === "stalled") {
@@ -878,7 +993,7 @@ class Room {
     if (!this.session) return;
     const input = $("[data-invite-link]", this.root);
     const copied = await copyText(input.value);
-    if (copied) this.toasts.show("Invite link copied. Send it to a friend.", { icon: "i-check" });
+    if (copied) this.toasts.show("Invite link copied", { icon: "i-check" });
     else if (!quiet) this.popover.showPopover();
   }
 
@@ -1005,10 +1120,52 @@ const markPulse = () =>
 const markLonely = () =>
   svgMark(`<circle cx="15" cy="14" r="11" fill="currentColor" opacity="0.45"/><circle cx="29" cy="14" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.45"/>`);
 
+/** The circle a countdown second closes, started however far into that second we already are. */
+function sweep(left) {
+  const svg = document.createElementNS(SVG, "svg");
+  svg.setAttribute("class", "countdown-sweep");
+  svg.setAttribute("viewBox", "0 0 100 100");
+  svg.setAttribute("aria-hidden", "true");
+  svg.innerHTML = `<circle cx="50" cy="50" r="49" pathLength="1"/><circle cx="50" cy="50" r="49" pathLength="1"/>`;
+  const into = 1000 - (((left % 1000) + 1000) % 1000 || 1000);
+  svg.style.setProperty("--into", `${-into}ms`);
+  return svg;
+}
+
+/** Someone's circle, with a ring for how they are and a tick for the moment they're ready. */
+function face(who, you) {
+  const ring = document.createElementNS(SVG, "svg");
+  ring.setAttribute("class", "face-ring");
+  ring.setAttribute("viewBox", "0 0 36 36");
+  ring.innerHTML = `<circle cx="18" cy="18" r="16.75" pathLength="100"/>`;
+  const tick = document.createElementNS(SVG, "svg");
+  tick.setAttribute("class", "face-tick");
+  tick.setAttribute("viewBox", "0 0 24 24");
+  tick.innerHTML = `<path d="m7 12.5 3.3 3.3L17 9" pathLength="1"/>`;
+  return h("span", { class: you ? "face is-you" : "face", "aria-hidden": "true" }, avatar(who, { you }), tick, ring);
+}
+
+function celebrateReady(li) {
+  li.classList.remove("is-confirming");
+  if (calm.matches) return;
+  // Restart the flourish if they toggle quickly.
+  void li.offsetWidth;
+  li.classList.add("is-confirming");
+  clearTimeout(li.confirmTimer);
+  li.confirmTimer = setTimeout(() => li.classList.remove("is-confirming"), 1400);
+}
+
+function depart(li) {
+  if (calm.matches) return li.remove();
+  li.classList.add("is-leaving");
+  setTimeout(() => li.remove(), 320);
+}
+
 function flashCopied(button) {
   const svg = $("svg", button);
   const label = $("span", button);
   setIcon(svg, "i-check");
+  nudge(svg, [{ transform: "scale(0.4)" }, { transform: "none" }], { duration: 420 });
   label.textContent = "Copied";
   setTimeout(() => {
     setIcon(svg, "i-copy");
@@ -1017,6 +1174,7 @@ function flashCopied(button) {
 }
 
 const room = new Room(screens.room);
+new Drop($("[data-drop]"));
 
 // ---------------------------------------------------------------------------------------------
 // Routing: an invite in the URL goes straight to joining.
