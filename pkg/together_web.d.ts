@@ -50,7 +50,7 @@ export type SessionEvent =
 | { type: "peerJoined"; who: Person; message: string }
 | { type: "peerLeft"; who: Person; message: string }
 | { type: "changed"; who: Person; local: boolean; action: "play" | "pause" | "seek"; position: number; message: string }
-| { type: "mediaMismatch"; who: Person; title: string; duration: number | null; message: string }
+| { type: "mediaMismatch"; who: Person; message: string }
 | { type: "ready"; who: Person; local: boolean; ready: boolean; message: string }
 | { type: "holding"; who: Person; local: boolean; message: string }
 | { type: "starting"; startsAt: number; resuming: boolean; message: string }
@@ -226,16 +226,16 @@ export interface InitOutput {
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21822: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21824: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11675: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_13428: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_21780: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21782: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11690: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_13387: (a: number, b: number, c: number) => void;
     readonly __wasm_bindgen_func_elem_614: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_9108: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11470: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12588: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12668: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21662: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_9123: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11485: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12603: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12683: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21620: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

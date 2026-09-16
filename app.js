@@ -544,10 +544,9 @@ class Room {
   }
 
   showMismatch(event) {
-    const theirs = event.duration ? `“${event.title}” (${formatTime(event.duration)})` : `“${event.title}”`;
     $("[data-mismatch-title]", this.root).textContent = event.message;
     $("[data-mismatch-text]", this.root).textContent =
-      `They have ${theirs}. Playback still stays in sync, so check you both picked the same file.`;
+      "Their file doesn’t match yours. Playback still stays in sync, so check you both picked the same file.";
     this.mismatch.hidden = false;
   }
 
