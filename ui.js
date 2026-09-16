@@ -110,6 +110,14 @@ export const prefs = {
   set name(value) {
     localStorage.setItem("together.name", value.trim());
   },
+  /** A relay server of the user's own, set once with `?relay=` (empty to forget it). */
+  get relay() {
+    return localStorage.getItem("together.relay")?.trim() || "";
+  },
+  set relay(value) {
+    if (value.trim()) localStorage.setItem("together.relay", value.trim());
+    else localStorage.removeItem("together.relay");
+  },
   get volume() {
     const v = Number(localStorage.getItem("together.volume"));
     return Number.isFinite(v) && localStorage.getItem("together.volume") !== null ? v : 1;
@@ -118,3 +126,9 @@ export const prefs = {
     localStorage.setItem("together.volume", String(value));
   },
 };
+
+// `?relay=https://relay.example.com` remembers a relay; `?relay=` forgets it.
+{
+  const relay = new URLSearchParams(location.search).get("relay");
+  if (relay !== null) prefs.relay = relay;
+}

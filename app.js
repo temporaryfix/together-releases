@@ -297,6 +297,7 @@ class Room {
         video: this.video,
         name,
         stream: Boolean(stream),
+        relay: prefs.relay || undefined,
         title: source?.title,
         duration: source && this.video.duration,
         size: source?.size,
@@ -377,6 +378,7 @@ class Room {
     this.source = undefined;
     this.awaitingFilm = false;
     this.streamError = undefined;
+    this.relayBlocked = false;
     this.peers = new Map();
     this.hadPeers = false;
     this.ready = undefined;
@@ -449,6 +451,9 @@ class Room {
       case "streaming":
         this.startStreaming(event);
         break;
+      case "relayBlocked":
+        this.relayBlocked = event.blocked;
+        break;
       case "playback":
         this.blocked = event.blocked;
         this.renderPeople();
@@ -491,8 +496,13 @@ class Room {
       const state = row.stalled ? "stalled" : row.ready ? "ready" : "";
       if (li.dataset.state !== state) li.dataset.state = state;
       const aside = row.ready && !row.stalled ? " · ready to start" : "";
-      li.title = `${row.who.name}: ${sync.detail}${aside}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}`;
+      // How we reach them: direct is worth saying too, so "nothing shown" never has to mean
+      // "we couldn't tell" and "it's fine" at the same time.
+      const via = row.link?.type === "relayed" ? ` · via relay ${row.link.relay}` : row.link?.type === "direct" ? " · direct" : "";
+      li.title = `${row.who.name}: ${sync.detail}${aside}${row.rttMs != null ? ` · ${Math.round(row.rttMs)} ms round trip` : ""}${via}`;
       li.setAttribute("aria-label", li.title);
+      const link = row.link?.type ?? "";
+      if (li.dataset.link !== link) li.dataset.link = link;
     });
     for (const [id, li] of existing) if (!keep.has(id)) li.remove();
   }
@@ -637,6 +647,24 @@ class Room {
             text: slow
               ? "Still trying. Make sure the person who invited you still has the room open."
               : "This usually takes a few seconds.",
+          }),
+      };
+    }
+    if (this.awaitingFilm && this.relayBlocked) {
+      return {
+        kind: "relay-blocked",
+        render: () =>
+          card({
+            mark: markLonely(),
+            title: "Can’t stream through the public relay",
+            text: prefs.relay
+              ? "Whoever is sharing the video isn’t on your relay, and films never go through the public ones. Ask them to use your relay too, or use your own copy."
+              : "Browsers always connect through a relay, and films never go through the public ones. Use your own copy, or open the invite with ?relay= set to a relay server you run.",
+            action: h(
+              "button",
+              { class: "btn btn-primary", type: "button", onclick: () => this.leave({ keepInvite: true }) },
+              "Use my own copy",
+            ),
           }),
       };
     }
@@ -960,16 +988,17 @@ function svgMark(children) {
 
 /** You, and a friend still to come. */
 const markWaiting = () =>
-  svgMark(`<circle cx="15" cy="14" r="11" fill="var(--beam-cool)"/><circle class="friend" cx="29" cy="14" r="10.2"/>`);
+  svgMark(`<circle cx="15" cy="14" r="11" fill="currentColor"/><circle class="friend" cx="29" cy="14" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3"/>`);
 
-/** Two lights finding each other. */
+/** Two people finding each other. */
 const markPulse = () =>
   svgMark(
-    `<circle class="pulse" cx="15" cy="14" r="11" fill="var(--beam-cool)"/><circle class="pulse" cx="29" cy="14" r="11" fill="var(--beam-warm)"/>`,
+    `<circle class="pulse" cx="15" cy="14" r="11" fill="currentColor"/><circle class="pulse" cx="29" cy="14" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5"/>`,
   );
 
+/** On your own. */
 const markLonely = () =>
-  svgMark(`<circle cx="15" cy="14" r="11" fill="var(--beam-cool)" opacity="0.5"/><circle cx="29" cy="14" r="10.2" fill="none" stroke="var(--mist)" stroke-width="1.6" stroke-dasharray="3.2 3"/>`);
+  svgMark(`<circle cx="15" cy="14" r="11" fill="currentColor" opacity="0.45"/><circle cx="29" cy="14" r="10.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="3 3" opacity="0.45"/>`);
 
 function flashCopied(button) {
   const svg = $("svg", button);

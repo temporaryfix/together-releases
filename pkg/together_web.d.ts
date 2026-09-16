@@ -13,7 +13,7 @@ export interface SessionOptions {
     video: HTMLVideoElement;
     /** Shown to the others in the room. */
     name: string;
-    /** Usually the file name. Left out when streaming: the room says what is playing. */
+    /** Usually the file name. Left out when streaming: the room never says what is playing. */
     title?: string;
     /** Seconds, if already known; the element reports it otherwise. */
     duration?: number;
@@ -21,6 +21,9 @@ export interface SessionOptions {
     size?: number;
     /** Join with no copy of your own and stream the room's, over `Session.streamHead`/`streamBody`. */
     stream?: boolean;
+    /** A relay server of your own. Films never go through the public relays, and a browser has no
+     *  direct path to anyone, so this is what makes streaming possible. */
+    relay?: string;
 }
 
 export interface StreamHead {
@@ -34,7 +37,12 @@ export interface StreamHead {
 
 export interface Person { id: string; name: string; initials: string; hue: number }
 export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown"; label: string; detail: string }
-export interface PeerView { who: Person; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean }
+/** How we reach a peer. `null` until a connection is established. */
+export type LinkView =
+| { type: "direct" }
+| { type: "relayed"; relay: string };
+
+export interface PeerView { who: Person; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean; link: LinkView | null }
 
 /** The ready check from your side. `open` is whether saying so would do anything. */
 export interface ReadyView { mine: boolean; count: number; total: number; open: boolean; label: string }
@@ -58,6 +66,7 @@ export type SessionEvent =
 | { type: "streaming"; hash: string; title: string; size: number }
 | { type: "status"; me: Person; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; ready: ReadyView; waiting: WaitingView }
 | { type: "playback"; blocked: boolean }
+| { type: "relayBlocked"; blocked: boolean }
 | { type: "stopped"; error: string | null; message: string };
 
 
@@ -226,16 +235,16 @@ export interface InitOutput {
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21780: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21782: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11690: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_13387: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_614: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_9123: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11485: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12603: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12683: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21620: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21856: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21858: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11751: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_13461: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_620: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_9175: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11546: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12664: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12744: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21696: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;
