@@ -9,6 +9,7 @@
   <title>together</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
+  <link rel="modulepreload" href="backend.js">
   <link rel="modulepreload" href="pkg/together_web.js">
   <script type="module" src="app.js"></script>
 </head>
@@ -73,6 +74,7 @@
 
     <div class="middle">
       <h1 class="headline">You’re invited to watch together.</h1>
+      <p class="hint relay-hint" data-relay-hint hidden></p>
 
       <section class="stage-card dropzone" data-dropzone aria-label="Join the room">
         <div class="name-slot" data-name-slot></div>
@@ -157,6 +159,7 @@
     <div class="popover" id="invite-popover" popover data-invite-popover>
       <h2 class="popover-title">Invite friends</h2>
       <p class="popover-text">Anyone with the link can join.</p>
+      <p class="popover-text" data-invite-relay hidden></p>
       <div class="copy-row">
         <label class="visually-hidden" for="invite-link">Invite link</label>
         <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>

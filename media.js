@@ -6,6 +6,7 @@
 //     kind:    "file" | "stream",
 //     title:   string,              shown in the room and compared with other peers'
 //     size:    number | undefined,  bytes, if known
+//     file:    File | undefined,    the file itself, for the room to hash
 //     attach(video): Promise<void>  load into the element; resolves once the duration is known
 //     release(): void               free whatever attach() took
 //   }
@@ -23,6 +24,7 @@ export function fileSource(file) {
     kind: "file",
     title: file.name,
     size: file.size,
+    file,
     async attach(video) {
       url = URL.createObjectURL(file);
       try {

@@ -19,6 +19,9 @@ export interface SessionOptions {
     duration?: number;
     /** Bytes. */
     size?: number;
+    /** The file loaded into `video`. It's hashed so the room can name it: a room you start then opens
+     *  it on every joiner, from their own copy or, through a relay of your own, streamed from you. */
+    file?: File;
     /** Join with no copy of your own and stream the room's, over `Session.streamHead`/`streamBody`. */
     stream?: boolean;
     /** A relay server of your own. Films never go through the public relays, and a browser has no
@@ -36,13 +39,21 @@ export interface StreamHead {
 }
 
 export interface Person { id: string; name: string; initials: string; hue: number }
-export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown"; label: string; detail: string }
+/** The sync meter: `gapMs` from the room (+ ahead) give or take `errMs`, and words for it. */
+export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown" | "off" | "none"; label: string; detail: string; gapMs: number | null; errMs: number | null }
 /** How we reach a peer. `null` until a connection is established. */
 export type LinkView =
 | { type: "direct" }
-| { type: "relayed"; relay: string };
+| { type: "relayed"; relay: string }
+| { type: "indirect" };
+export type Role = "viewer" | "screen" | "remote";
+/** Whether a player is on the room's video. */
+export type Following = "yes" | "loading" | "off";
 
-export interface PeerView { who: Person; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean; link: LinkView | null }
+export interface PeerView { who: Person; role: Role; following: Following; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean; link: LinkView | null }
+
+/** A checked invite, and the room's own relay if it names one. */
+export interface InviteInfo { ticket: string; relay: string | null }
 
 /** The ready check from your side. `open` is whether saying so would do anything. */
 export interface ReadyView { mine: boolean; count: number; total: number; open: boolean; label: string }
@@ -52,19 +63,23 @@ export type WaitingView =
 | { type: "nobody" }
 | { type: "ready"; who: string[]; message: string }
 | { type: "stalled"; who: string[]; local: boolean; message: string }
+| { type: "ad"; who: string[]; local: boolean; message: string }
+| { type: "loading"; message: string }
 | { type: "starting"; startsAt: number; remainingMs: number; resuming: boolean; message: string };
 
 export type SessionEvent =
 | { type: "peerJoined"; who: Person; message: string }
 | { type: "peerLeft"; who: Person; message: string }
-| { type: "changed"; who: Person; local: boolean; action: "play" | "pause" | "seek"; position: number; message: string }
+| { type: "changed"; who: Person; local: boolean; action: "play" | "pause" | "seek" | "load"; position: number; message: string }
 | { type: "mediaMismatch"; who: Person; message: string }
 | { type: "ready"; who: Person; local: boolean; ready: boolean; message: string }
 | { type: "holding"; who: Person; local: boolean; message: string }
 | { type: "starting"; startsAt: number; resuming: boolean; message: string }
 | { type: "gaveUp"; who: Person; local: boolean; message: string }
 | { type: "streaming"; hash: string; title: string; size: number }
-| { type: "status"; me: Person; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; ready: ReadyView; waiting: WaitingView }
+| { type: "refused"; who: Person | null; reason: "newer" | "notMember" | "roomFull" | "other"; message: string }
+| { type: "program"; loading: boolean; offProgram: boolean; unsupported: boolean; message: string | null }
+| { type: "status"; me: Person; role: Role; following: Following; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; ready: ReadyView; waiting: WaitingView }
 | { type: "playback"; blocked: boolean }
 | { type: "relayBlocked"; blocked: boolean }
 | { type: "stopped"; error: string | null; message: string };
@@ -183,6 +198,10 @@ export class Session {
      */
     streamHead(hash: string, range?: string | null): any;
     /**
+     * The host of the relay our invite names, which joiners use unless they have their own.
+     */
+    readonly relay: string | undefined;
+    /**
      * The ticket others join with. Anyone in a room can invite; it keeps working after the
      * original host leaves, as long as this session is open.
      */
@@ -193,6 +212,12 @@ export class Session {
  * `0:05`, `12:31`, `1:02:03`.
  */
 export function formatTime(seconds: number): string;
+
+/**
+ * Check an invite and say what's in it: an `InviteInfo`. Invites from older and newer versions
+ * of together are refused with what to do about it.
+ */
+export function inspectInvite(invite: string): InviteInfo;
 
 /**
  * Validate an invite (a ticket or a link containing one) and return the bare ticket.
@@ -213,6 +238,7 @@ export interface InitOutput {
     readonly body_cancel: (a: number) => void;
     readonly body_next: (a: number) => number;
     readonly formatTime: (a: number, b: number) => void;
+    readonly inspectInvite: (a: number, b: number, c: number) => void;
     readonly intounderlyingbytesource_autoAllocateChunkSize: (a: number) => number;
     readonly intounderlyingbytesource_cancel: (a: number) => void;
     readonly intounderlyingbytesource_pull: (a: number, b: number) => number;
@@ -231,6 +257,7 @@ export interface InitOutput {
     readonly session_onEvent: (a: number, b: number) => void;
     readonly session_pause: (a: number) => void;
     readonly session_play: (a: number) => void;
+    readonly session_relay: (a: number, b: number) => void;
     readonly session_resumePlayback: (a: number) => void;
     readonly session_seek: (a: number, b: number) => void;
     readonly session_setReady: (a: number, b: number) => void;
@@ -239,16 +266,16 @@ export interface InitOutput {
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21893: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21895: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11778: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_13480: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_632: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_9202: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11573: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12691: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12763: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21733: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_20644: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_20646: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_10508: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_12195: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_679: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_7926: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_10303: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_11409: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_11490: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_20483: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

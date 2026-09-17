@@ -384,6 +384,19 @@ input {
   font-size: var(--step--1);
 }
 
+.relay-hint {
+  margin: -0.5rem 0 0;
+  text-align: center;
+}
+
+/* An invite this version can't use: only the reason, and the way home, are left. */
+.invited.is-refused [data-stream],
+.invited.is-refused [data-own-copy],
+.invited.is-refused [data-own-copy-hint],
+.invited.is-refused .name-slot {
+  display: none;
+}
+
 .name-slot {
   display: grid;
   justify-items: center;
@@ -638,8 +651,7 @@ input {
   transition: stroke-dashoffset 0.55s var(--ease-out), opacity 0.25s, stroke-dasharray 0.3s;
 }
 
-.person[data-sync="unknown"] .face-ring,
-.person[data-sync="poor"] .face-ring {
+.person[data-sync="unknown"] .face-ring {
   stroke-dasharray: 2 6;
   stroke-dashoffset: 0;
   opacity: 0.45;
@@ -676,6 +688,84 @@ input {
     opacity: 0.5;
     transform: scale(0.92);
   }
+}
+
+/* The sync meter: a hairline on the rim, where the ring would be. It hangs at the bottom while
+   someone is with the room and slides round, right when ahead and left when behind; its length
+   is how sure the measurement is. Faint while all is well, plain when it's worth a glance, and
+   heavier, with words beside the circle, when they're clearly off. The numbers are in the
+   tooltip. */
+.face-meter {
+  width: 34px;
+  height: 34px;
+  overflow: visible;
+  fill: none;
+  stroke: var(--text);
+  stroke-width: 1.25;
+  stroke-linecap: round;
+  stroke-dasharray: var(--meter-length, 16) 360;
+  opacity: 0;
+  transform: rotate(var(--meter-start, 82deg));
+  transition:
+    transform 0.9s var(--spring),
+    stroke-dasharray 0.9s var(--ease-out),
+    opacity 0.4s,
+    stroke-width 0.3s;
+  pointer-events: none;
+}
+
+.face-meter.is-shown {
+  opacity: 0.55;
+}
+
+.person[data-sync="fair"] .face-meter.is-shown {
+  opacity: 0.85;
+}
+
+.person[data-sync="poor"] .face-meter.is-shown {
+  opacity: 1;
+  stroke-width: 2;
+}
+
+/* A ring says more than the meter while someone is held up, or has said they're ready. */
+.person[data-state="ready"] .face-meter,
+.person[data-state="stalled"] .face-meter,
+.person[data-sync="off"] .face-meter,
+.person[data-sync="none"] .face-meter {
+  opacity: 0;
+}
+
+/* Not on the room's video: the circle steps back. */
+.person[data-sync="off"] .avatar {
+  opacity: 0.45;
+}
+
+/* Roles keep one shape per person. A screen is a small TV, with its stand; a remote is a narrow
+   capsule, like the thing in your hand. */
+.person[data-role="screen"] .avatar {
+  width: 30px;
+  height: 21px;
+  border-radius: 5px;
+  margin-top: -3px;
+}
+
+.person[data-role="screen"] .face::after {
+  content: "";
+  grid-area: 1 / 1;
+  align-self: end;
+  justify-self: center;
+  width: 12px;
+  height: 1.5px;
+  margin-bottom: 2px;
+  border-radius: 1px;
+  background: var(--text);
+}
+
+.person[data-role="remote"] .avatar {
+  width: 19px;
+  height: 30px;
+  border-radius: 999px;
+  font-size: 0.58rem;
 }
 
 /* The moment someone says they're ready: their initials make way for a tick, which draws itself
