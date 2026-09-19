@@ -11,9 +11,18 @@
 //   join(invite, options): Promise<RoomSession>
 //   inspectInvite(text): InviteInfo        synchronous; throws an Error whose message is for the user
 //   formatTime(seconds): string            "0:05", "1:02:03"; synchronous
+//   tuneTrack(): Uint8Array                 the tuning chirps as a WAV file (see tune.js)
+//   tunePlay(video, url, lead): Promise<number[]>
+//                                           play them, and when the readings put each playing
+//   tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs)
+//                                           { delayMs, spreadMs, chirps } or { error, … }
+//   RemoteTune(send)                        a <video> in another document to tune, through the
+//                                           same bridge as SessionOptions.remote: .input(report),
+//                                           .play(lead): Promise<number[]> (epoch ms)
 // }
 //
-// options: { video, name, stream?, relay?, title?, duration?, size?, file? }   (see SessionOptions)
+// options: { video, name, stream?, relay?, title?, duration?, size?, file?, outputDelay? }
+//          (see SessionOptions; outputDelay: ms, what tuning measured)
 // InviteInfo: { ticket: string, relay: string | null }   relay: the room's own relay host, if the invite names one
 //
 // RoomSession {
@@ -52,6 +61,13 @@ function wasmBackend() {
       return { ticket: info.ticket, relay: info.relay ?? null };
     },
     formatTime: (seconds) => pkg.formatTime(seconds),
+    tuneTrack: () => pkg.tuneTrack(),
+    tunePlay: (video, url, lead) => pkg.tunePlay(video, url, lead),
+    tuneMeasure: (samples, rate, anchorIndex, anchorMs, expectedMs) =>
+      pkg.tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs),
+    get RemoteTune() {
+      return pkg.RemoteTune;
+    },
   };
 }
 

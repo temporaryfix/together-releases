@@ -10,7 +10,10 @@ export type ReadableStreamType = "bytes";
 
 export interface SessionOptions {
     /** The element to keep in sync. Load the media into it first, unless `stream` is set. */
-    video: HTMLVideoElement;
+    video?: HTMLVideoElement;
+    /** Instead of `video`: an element in another document, such as a browser extension's tab.
+     *  Called with every command for it; feed what it reports to `Session.playerInput`. */
+    remote?: (command: RemoteCommand) => void;
     /** Shown to the others in the room. */
     name: string;
     /** Usually the file name. Left out when streaming: the room never says what is playing. */
@@ -19,6 +22,9 @@ export interface SessionOptions {
     duration?: number;
     /** Bytes. */
     size?: number;
+    /** Seconds: where a room you start begins, when its video is already part way through (a page
+     *  the viewer was watching). Ignored when joining. */
+    position?: number;
     /** The file loaded into `video`. It's hashed so the room can name it: a room you start then opens
      *  it on every joiner, from their own copy or, through a relay of your own, streamed from you. */
     file?: File;
@@ -28,6 +34,27 @@ export interface SessionOptions {
      *  direct path to anyone, so this is what makes streaming possible. */
     relay?: string;
 }
+
+/** What to do to a remote element (`SessionOptions.remote`). After `play`, report how `play()`
+ *  settled with a `played` input carrying the same `attempt`. `rate` goes with `preservesPitch`
+ *  off, so small corrections are resampled rather than time-stretched. */
+export type RemoteCommand =
+| { type: "play"; attempt: number }
+| { type: "pause" }
+| { type: "seek"; position: number }
+| { type: "rate"; rate: number };
+
+/** What a remote element reports, for `Session.playerInput`: a `reading` every 50 ms, and the rest
+ *  as it happens. `ageMs` is how long ago it happened, on this page's clock. A reading with `ad`
+ *  is of an ad the site is showing in the element; the room waits for it. */
+export type PlayerInput =
+| { type: "reading"; position: number; paused: boolean; seeking: boolean; ended: boolean; readyState: number; duration: number | null; ad?: boolean; ageMs: number }
+| { type: "signal"; signal: "seeked" | "waiting" | "stalled" | "canplay" | "playing" }
+| { type: "played"; attempt: number; started: boolean }
+| { type: "visibility"; hidden: boolean }
+| { type: "gesture"; ageMs: number }
+| { type: "resumed" }
+| { type: "detached" };
 
 export interface StreamHead {
     status: number;
@@ -132,6 +159,28 @@ export class IntoUnderlyingSource {
     pull(controller: ReadableStreamDefaultController): Promise<any>;
 }
 
+/**
+ * Tuning a `<video>` in another document, through the extension's bridge ([`bridge`]): the tab
+ * has the tuning video open (its chirps timed as [`tune_track`]'s), the host feeds this what the
+ * tab reports, and [`RemoteTune::play`] plays it from the start and says when each chirp played.
+ */
+export class RemoteTune {
+    free(): void;
+    [Symbol.dispose](): void;
+    /**
+     * Something the tab reported: a `PlayerInput`, as `Session.playerInput` takes.
+     */
+    input(input: any): void;
+    /**
+     * `send` is called with each command for the tab, as `SessionOptions.remote` is.
+     */
+    constructor(send: Function);
+    /**
+     * Play from the start, and say when the readings put each chirp playing, in epoch ms. Once.
+     */
+    play(lead: number): Promise<Float64Array>;
+}
+
 export class Session {
     private constructor();
     free(): void;
@@ -170,6 +219,10 @@ export class Session {
      * video when the room does.
      */
     play(): void;
+    /**
+     * Something a remote element (`SessionOptions.remote`) reported: a `PlayerInput`.
+     */
+    playerInput(input: PlayerInput): void;
     /**
      * Start playback after the browser blocked it (a `playback` event with `blocked: true`).
      * Call it directly from a click or key handler.
@@ -226,6 +279,27 @@ export function parseInvite(invite: string): string;
 
 export function start(): void;
 
+/**
+ * Measure a recording: `samples` (mono, at `rate`), whose sample `anchor_index[k]` reached the
+ * microphone at `anchor_ms[k]` (epoch ms), against `expected_ms`, when the readings
+ * put each chirp playing. Gives `{ delayMs, spreadMs, chirps }`, or `{ error, delayMs?, spreadMs? }`
+ * saying why it doesn't count.
+ */
+export function tuneMeasure(samples: Float32Array, rate: number, anchor_index: Uint32Array, anchor_ms: Float64Array, expected_ms: Float64Array): any;
+
+/**
+ * Play `url` (a tuning track with its first chirp `lead` seconds in: [`tune_track`]) in `video`,
+ * read it as a room would, and say when its readings put each chirp playing, in epoch ms. The
+ * element must already be allowed to play sound (the page primes it in the click that started
+ * tuning).
+ */
+export function tunePlay(video: HTMLVideoElement, url: string, lead: number): Promise<Float64Array>;
+
+/**
+ * The tuning track: chirps as a WAV file, for the page to hand the element as a blob.
+ */
+export function tuneTrack(): Uint8Array;
+
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
@@ -234,6 +308,7 @@ export interface InitOutput {
     readonly __wbg_intounderlyingbytesource_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsink_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
+    readonly __wbg_remotetune_free: (a: number, b: number) => void;
     readonly __wbg_session_free: (a: number, b: number) => void;
     readonly body_cancel: (a: number) => void;
     readonly body_next: (a: number) => number;
@@ -250,6 +325,9 @@ export interface InitOutput {
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: number) => number;
     readonly parseInvite: (a: number, b: number, c: number) => void;
+    readonly remotetune_input: (a: number, b: number, c: number) => void;
+    readonly remotetune_new: (a: number) => number;
+    readonly remotetune_play: (a: number, b: number) => number;
     readonly session_clockMs: (a: number) => number;
     readonly session_host: (a: number) => number;
     readonly session_join: (a: number, b: number, c: number) => number;
@@ -257,6 +335,7 @@ export interface InitOutput {
     readonly session_onEvent: (a: number, b: number) => void;
     readonly session_pause: (a: number) => void;
     readonly session_play: (a: number) => void;
+    readonly session_playerInput: (a: number, b: number, c: number) => void;
     readonly session_relay: (a: number, b: number) => void;
     readonly session_resumePlayback: (a: number) => void;
     readonly session_seek: (a: number, b: number) => void;
@@ -265,17 +344,20 @@ export interface InitOutput {
     readonly session_streamHead: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
+    readonly tuneMeasure: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
+    readonly tunePlay: (a: number, b: number, c: number, d: number) => number;
+    readonly tuneTrack: (a: number) => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_20889: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_20891: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_10706: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_12388: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_695: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_8120: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_10497: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_11607: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_11687: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_20728: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21464: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21466: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11257: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_12942: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_8675: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_876: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11052: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12158: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12240: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21302: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

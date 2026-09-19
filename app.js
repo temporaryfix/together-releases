@@ -3,6 +3,7 @@
 import { backend } from "./backend.js";
 import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
 import { canStream } from "./stream.js";
+import { outputDelayMs, tune, tuned } from "./tune.js";
 import { Toasts, avatar, calm, copyText, h, icon, log, nudge, paintRange, prefs, setIcon } from "./ui.js";
 
 const wasm = backend.ready;
@@ -347,6 +348,31 @@ async function renderInvited(invite) {
   $("[data-own-copy-hint]", screen).hidden = stream;
   $("[data-own-copy]", screen).classList.toggle("btn-primary", !stream);
 }
+// Tuning: measure this browser's sound against what the room reads, with the microphone.
+{
+  const button = $("[data-tune]");
+  const status = $("[data-tune-status]");
+  const show = () => {
+    const t = tuned();
+    if (!t) return;
+    const ms = Math.round(t.delayMs);
+    status.textContent = `Sound tuned: ${ms > 0 ? "+" : ""}${ms} ms.`;
+    button.textContent = "Tune again";
+  };
+  show();
+  button.addEventListener("click", async () => {
+    button.disabled = true;
+    try {
+      await tune($("[data-tune-video]"), (step) => (status.textContent = step));
+      show();
+    } catch (error) {
+      status.textContent = error.message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+}
+
 $("[data-home]").addEventListener("click", (e) => {
   e.preventDefault();
   history.pushState(null, "", location.pathname + location.search);
@@ -444,6 +470,7 @@ class Room {
         duration: source && this.video.duration,
         size: source?.size,
         file: source?.file,
+        outputDelay: outputDelayMs(),
       };
       log.info(invite ? "joining a room" : "hosting a room", {
         stream: options.stream,
