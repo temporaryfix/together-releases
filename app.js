@@ -3,7 +3,7 @@
 import { backend } from "./backend.js";
 import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
 import { canStream } from "./stream.js";
-import { outputDelayMs, tune, tuned } from "./tune.js";
+import { outputDelayMs, tune, tuneNow } from "./tune.js";
 import { Toasts, avatar, calm, copyText, h, icon, log, nudge, paintRange, prefs, setIcon } from "./ui.js";
 
 const wasm = backend.ready;
@@ -352,22 +352,56 @@ async function renderInvited(invite) {
 {
   const button = $("[data-tune]");
   const status = $("[data-tune-status]");
-  const show = () => {
-    const t = tuned();
+  // A tune belongs to an output, not to a browser, so say which one this is (tune.js, `tuneNow`).
+  // Plugging headphones in should read as untuned, not as tuned by somebody else's number.
+  const show = async () => {
+    const { on, matched, tune: t } = await tuneNow();
+    if (!t && on) {
+      status.textContent = `${on} hasn’t been tuned.`;
+      button.textContent = "Tune it";
+      return;
+    }
     if (!t) return;
     const ms = Math.round(t.delayMs);
-    status.textContent = `Sound tuned: ${ms > 0 ? "+" : ""}${ms} ms.`;
+    const where = matched && on ? ` for ${on}` : "";
+    status.textContent = `Sound tuned${where}: ${ms > 0 ? "+" : ""}${ms} ms.`;
     button.textContent = "Tune again";
   };
   show();
+  // The sound moves to whatever is plugged in or unplugged, so the row follows it.
+  navigator.mediaDevices?.addEventListener?.("devicechange", () => show());
+  // While it runs: what it is doing, a live microphone meter, and how far through it is. Thirty
+  // silent seconds with one line of text is what this replaces; the phases are tune.js's own.
+  const PHASES = ["microphone", "reference", "video"];
+  const run = $("[data-tune-run]");
+  const meter = $("[data-tune-meter]");
+  const progress = ({ phase, label, fraction, level, hot }) => {
+    $("[data-tune-step]").textContent = label;
+    meter.style.setProperty("--level", level.toFixed(3));
+    $("[data-tune-meter-text]").textContent = `Microphone level ${Math.round(level * 100)}%`;
+    $("[data-tune-hot]").hidden = !hot;
+    const at = PHASES.indexOf(phase);
+    for (const [i, name] of PHASES.entries()) {
+      const li = $(`[data-tune-phase="${name}"]`);
+      li.dataset.state = i < at ? "done" : i === at ? "now" : "";
+      li.style.setProperty("--through", i < at ? 1 : i === at ? fraction.toFixed(3) : 0);
+    }
+  };
+  const row = $(".tune-row");
   button.addEventListener("click", async () => {
     button.disabled = true;
+    // The panel says what is happening, so the row that offered the tune gets out of the way
+    // rather than saying it a second time in smaller type.
+    row.hidden = true;
+    run.hidden = false;
     try {
-      await tune($("[data-tune-video]"), (step) => (status.textContent = step));
-      show();
+      await tune($("[data-tune-video]"), (step) => (status.textContent = step), progress);
+      await show();
     } catch (error) {
       status.textContent = error.message;
     } finally {
+      run.hidden = true;
+      row.hidden = false;
       button.disabled = false;
     }
   });
@@ -470,7 +504,7 @@ class Room {
         duration: source && this.video.duration,
         size: source?.size,
         file: source?.file,
-        outputDelay: outputDelayMs(),
+        outputDelay: await outputDelayMs(),
       };
       log.info(invite ? "joining a room" : "hosting a room", {
         stream: options.stream,

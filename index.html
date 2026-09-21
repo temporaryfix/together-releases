@@ -67,6 +67,20 @@
         <span data-tune-status>Sound late on headphones or a TV speaker?</span>
         <button class="quiet-link" type="button" data-tune>Tune it</button>
       </p>
+      <!-- While tuning runs: the same meter and phases as the extension's Tune page. -->
+      <section class="tune-run" data-tune-run hidden>
+        <p class="tune-step" role="status" data-tune-step></p>
+        <div class="tune-meter" data-tune-meter>
+          <span class="visually-hidden" data-tune-meter-text>Microphone level</span>
+        </div>
+        <ol class="tune-phases">
+          <li class="tune-phase" data-tune-phase="microphone"><span class="tune-phase-bar"></span>Microphone</li>
+          <li class="tune-phase" data-tune-phase="reference"><span class="tune-phase-bar"></span>This computer</li>
+          <li class="tune-phase" data-tune-phase="video"><span class="tune-phase-bar"></span>The video</li>
+        </ol>
+        <p class="hint tune-hot" data-tune-hot hidden>The microphone is up very loud. If this comes
+          out wrong, turn its input volume down and tune again.</p>
+      </section>
       <video class="visually-hidden" playsinline data-tune-video></video>
     </div>
   </main>

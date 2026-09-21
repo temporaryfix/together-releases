@@ -178,7 +178,7 @@ export class RemoteTune {
     /**
      * Play from the start, and say when the readings put each chirp playing, in epoch ms. Once.
      */
-    play(lead: number): Promise<Float64Array>;
+    play(lead: number, chirps?: number | null): Promise<Float64Array>;
 }
 
 export class Session {
@@ -232,6 +232,11 @@ export class Session {
      * Move everyone to `seconds`.
      */
     seek(seconds: number): void;
+    /**
+     * Say how late this browser's sound runs, in milliseconds, while the room is running: a tune
+     * that finished after the room started. Replaces the `outputDelay` it was opened with.
+     */
+    setOutputDelay(ms: number): void;
     /**
      * Say whether we're ready to start, or take it back. Once everyone in the room is ready,
      * playback is scheduled for a shared instant and every screen starts on the same frame.
@@ -293,12 +298,12 @@ export function tuneMeasure(samples: Float32Array, rate: number, anchor_index: U
  * element must already be allowed to play sound (the page primes it in the click that started
  * tuning).
  */
-export function tunePlay(video: HTMLVideoElement, url: string, lead: number): Promise<Float64Array>;
+export function tunePlay(video: HTMLVideoElement, url: string, lead: number, chirps?: number | null): Promise<Float64Array>;
 
 /**
- * The tuning track: chirps as a WAV file, for the page to hand the element as a blob.
+ * The tuning track: `chirps` chirps as a WAV file, for the page to hand the element as a blob.
  */
-export function tuneTrack(): Uint8Array;
+export function tuneTrack(chirps?: number | null): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -327,7 +332,7 @@ export interface InitOutput {
     readonly parseInvite: (a: number, b: number, c: number) => void;
     readonly remotetune_input: (a: number, b: number, c: number) => void;
     readonly remotetune_new: (a: number) => number;
-    readonly remotetune_play: (a: number, b: number) => number;
+    readonly remotetune_play: (a: number, b: number, c: number) => number;
     readonly session_clockMs: (a: number) => number;
     readonly session_host: (a: number) => number;
     readonly session_join: (a: number, b: number, c: number) => number;
@@ -339,25 +344,26 @@ export interface InitOutput {
     readonly session_relay: (a: number, b: number) => void;
     readonly session_resumePlayback: (a: number) => void;
     readonly session_seek: (a: number, b: number) => void;
+    readonly session_setOutputDelay: (a: number, b: number) => void;
     readonly session_setReady: (a: number, b: number) => void;
     readonly session_streamBody: (a: number, b: number, c: number, d: number) => void;
     readonly session_streamHead: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly tuneMeasure: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
-    readonly tunePlay: (a: number, b: number, c: number, d: number) => number;
-    readonly tuneTrack: (a: number) => void;
+    readonly tunePlay: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly tuneTrack: (a: number, b: number) => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21468: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21470: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11258: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_12946: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_8676: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_876: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11053: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12160: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12242: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21306: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21473: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21475: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11263: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_12951: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_8681: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_878: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11058: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12165: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12247: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21311: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

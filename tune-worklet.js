@@ -1,6 +1,9 @@
 // The microphone's recorder for tune.js: an AudioWorklet that hands on blocks of samples, each
-// with the context time of its first sample. A file of its own, not a blob: an extension's
-// content security policy only runs scripts it ships.
+// with the context time of its first sample, and the loudest sample in it. A file of its own, not
+// a blob: an extension's content security policy only runs scripts it ships.
+//
+// The peak rides along on the block that is being posted anyway, so the meter the page shows while
+// tuning runs costs one number every 4096 samples (about 85 ms at 48 kHz) and no extra messages.
 
 class Recorder extends AudioWorkletProcessor {
   constructor() {
@@ -13,7 +16,14 @@ class Recorder extends AudioWorkletProcessor {
   }
 
   flush() {
-    if (this.n > 0) this.port.postMessage({ t0: this.t0, samples: this.buf.slice(0, this.n) });
+    if (this.n > 0) {
+      let peak = 0;
+      for (let i = 0; i < this.n; i++) {
+        const v = this.buf[i] < 0 ? -this.buf[i] : this.buf[i];
+        if (v > peak) peak = v;
+      }
+      this.port.postMessage({ t0: this.t0, samples: this.buf.slice(0, this.n), peak });
+    }
     this.n = 0;
   }
 
