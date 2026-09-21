@@ -16,6 +16,11 @@
 //                                           play them, and when the readings put each playing
 //   tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs)
 //                                           { delayMs, spreadMs, chirps } or { error, … }
+//   tuneProbeTrack(): Uint8Array            the tuning probe, one sweep, as a WAV file
+//   tuneProbePlay(video, url, lead): Promise<number[]>
+//                                           play it, and when the readings put it playing
+//   tuneHear(samples, rate, anchorIndex, anchorMs, expectedMs)
+//                                           { offsetMs, prominence, splitMs } or { error, … }
 //   RemoteTune(send)                        a <video> in another document to tune, through the
 //                                           same bridge as SessionOptions.remote: .input(report),
 //                                           .play(lead, chirps?): Promise<number[]> (epoch ms)
@@ -65,6 +70,10 @@ function wasmBackend() {
     tunePlay: (video, url, lead, chirps) => pkg.tunePlay(video, url, lead, chirps),
     tuneMeasure: (samples, rate, anchorIndex, anchorMs, expectedMs) =>
       pkg.tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs),
+    tuneProbeTrack: () => pkg.tuneProbeTrack(),
+    tuneProbePlay: (video, url, lead) => pkg.tuneProbePlay(video, url, lead),
+    tuneHear: (samples, rate, anchorIndex, anchorMs, expectedMs) =>
+      pkg.tuneHear(samples, rate, anchorIndex, anchorMs, expectedMs),
     get RemoteTune() {
       return pkg.RemoteTune;
     },

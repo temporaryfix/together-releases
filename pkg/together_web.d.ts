@@ -285,6 +285,14 @@ export function parseInvite(invite: string): string;
 export function start(): void;
 
 /**
+ * Hear the probe in a recording: `samples` (mono, at `rate`), whose sample `anchor_index[k]`
+ * reached the microphone at `anchor_ms[k]` (epoch ms), where the readings put it playing at
+ * `expected_ms`. Gives `{ offsetMs, prominence, splitMs }`, the microphone's time of it less the
+ * expected, or `{ error: "quiet" | "split", prominence, splitMs? }` saying why it doesn't count.
+ */
+export function tuneHear(samples: Float32Array, rate: number, anchor_index: Uint32Array, anchor_ms: Float64Array, expected_ms: number): any;
+
+/**
  * Measure a recording: `samples` (mono, at `rate`), whose sample `anchor_index[k]` reached the
  * microphone at `anchor_ms[k]` (epoch ms), against `expected_ms`, when the readings
  * put each chirp playing. Gives `{ delayMs, spreadMs, chirps }`, or `{ error, delayMs?, spreadMs? }`
@@ -299,6 +307,22 @@ export function tuneMeasure(samples: Float32Array, rate: number, anchor_index: U
  * tuning).
  */
 export function tunePlay(video: HTMLVideoElement, url: string, lead: number, chirps?: number | null): Promise<Float64Array>;
+
+/**
+ * The probe itself, at `rate`: for the page to draw where the microphone should have heard it.
+ */
+export function tuneProbe(rate: number): Float32Array;
+
+/**
+ * [`tune_play`] for a probe track ([`tune_probe_track`], its probe `lead` seconds in: [`PROBE_LEAD`]): when the
+ * readings put the probe starting, in epoch ms, as a one-element array.
+ */
+export function tuneProbePlay(video: HTMLVideoElement, url: string, lead: number): Promise<Float64Array>;
+
+/**
+ * The tuning probe: one sweep, [`PROBE_LEAD`] seconds in, as a WAV file ([`tune::probe_track`]).
+ */
+export function tuneProbeTrack(): Uint8Array;
 
 /**
  * The tuning track: `chirps` chirps as a WAV file, for the page to hand the element as a blob.
@@ -350,20 +374,24 @@ export interface InitOutput {
     readonly session_streamHead: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
+    readonly tuneHear: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
     readonly tuneMeasure: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
     readonly tunePlay: (a: number, b: number, c: number, d: number, e: number) => number;
+    readonly tuneProbe: (a: number, b: number) => void;
+    readonly tuneProbePlay: (a: number, b: number, c: number, d: number) => number;
+    readonly tuneProbeTrack: (a: number) => void;
     readonly tuneTrack: (a: number, b: number) => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21473: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21475: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11263: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_12951: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_8681: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_878: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11058: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12165: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12247: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21311: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21501: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21503: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11292: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_12979: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_8710: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_894: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11087: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12193: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12275: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21339: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

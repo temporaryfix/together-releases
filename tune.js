@@ -23,8 +23,7 @@ import { chooseTune, currentInput, currentOutput, outputNow, referenceDevice } f
 
 export { outputNow };
 import { meterLevel, micVerdict } from "./tune-level.js";
-import { measureLag } from "./passive.js";
-import { canStamp, chirpTrain, stamp } from "./stamped.js";
+import { canStamp, stamp } from "./stamped.js";
 
 const KEY = "together.tune";
 /** Every tune kept, by the name of the output it was measured on: `{ [label]: result }`. */
@@ -38,19 +37,20 @@ const KEY_BY_DEVICE = "together.tunes";
 //
 // So this stays measured every time. The 8.4 s is load-bearing, and time has to come from
 // somewhere else.
-/**
- * Chirps the video plays. Not for accuracy -- at this delay 12 chirps measure as well as 40, to
- * within 0.002 ms, and at three times the room noise (together-core, `cargo test -p together-core
- * how_few -- --ignored --nocapture`). It is margin: the detector refuses fewer than 12 *found*,
- * and a room eats some. 20 leaves eight to lose and takes 10.8 s instead of 20.8.
- */
-const CHIRPS = 20;
-/** Chirps of the reference, played through Web Audio before the video's. */
-const REF_CHIRPS = 14;
-/** At most this many rounds of the reference, until one agrees. */
+//
+// Each round is one probe, a 0.7 s rising sweep (together-core `tune::probe`), where it used to be
+// a train of 14 and 20 identical chirps: what measures an output's delay elsewhere is one sweep
+// (RESEARCH/wiki/syntheses/acoustic-delay-measurement.md), and a sweep that is never repeated
+// can't be taken for its neighbour. It checks itself instead, its low and high halves heard apart.
+/** Where the probe starts in its track, seconds (`PROBE_LEAD` in crates/web/src/tune.rs). */
+const LEAD = 2.5;
+/** How long the probe is, and how late after it we keep listening, seconds. */
+const PROBE = 0.7;
+const TAIL = 0.8;
+/** At most this many rounds of the reference, until one is heard. */
 const REF_ROUNDS = 3;
 /** How long one round of the reference takes, from starting it to having measured it. */
-const REF_MS = (REF_CHIRPS * 0.5 + 1.4) * 1000;
+const REF_MS = (0.3 + 0.5 + PROBE + TAIL) * 1000;
 /** How long the microphone is watched before anything is played, to see that it is alive. */
 const PREFLIGHT_MS = 1200;
 
@@ -105,7 +105,7 @@ export async function outputDelayMs() {
 export async function tune(video, onStep = () => {}, onProgress = () => {}) {
   await backend.ready;
   // Allowed to play sound only from the click: start it now, on the track itself.
-  const url = URL.createObjectURL(new Blob([backend.tuneTrack(CHIRPS)], { type: "audio/wav" }));
+  const url = URL.createObjectURL(new Blob([backend.tuneProbeTrack()], { type: "audio/wav" }));
   video.src = url;
   video.muted = false;
   const primed = video.play().then(() => video.pause());
@@ -114,7 +114,7 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
       ready: primed.catch(() => {
         throw new Error("The browser didn't let the video play. Click Tune again.");
       }),
-      play: () => backend.tunePlay(video, url, 1.0, CHIRPS),
+      play: () => backend.tuneProbePlay(video, url, LEAD),
       onStep,
       onProgress,
     });
@@ -133,8 +133,8 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
 }
 
 /**
- * Record while `play()` plays the tuning chirps (its first chirp a second in) and resolves to
- * when its readings put each one playing (epoch ms), and measure. `ready` is awaited once the
+ * Record while `play()` plays the tuning probe (a second in) and resolves to when its readings put
+ * it playing (epoch ms, a one-element array), and measure. `ready` is awaited once the
  * microphone is granted. Resolves to { delayMs, spreadMs, chirps, when }; rejects with an Error
  * whose message is for the user. Keeps nothing: the caller decides where the result lives.
  *
@@ -231,8 +231,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
       console.debug("tune reference device", error);
     }
 
-    // Say what is happening, and keep saying it. Nothing below blocks for less than eight seconds,
-    // and a page with no sign of life is the whole complaint.
+    // Say what is happening, and keep saying it: a page with no sign of life is the whole complaint.
     let phase = null;
     let hot = false;
     const enter = (name, label, ms) => {
@@ -245,7 +244,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
       onProgress({ phase: phase.name, label: phase.label, fraction: Math.min(1, Math.max(0, through)), level: meterLevel(takePeak()), hot });
     }, 80);
 
-    // The recording so far, measured against `expected` (epoch ms). One line through the pairs
+    // The recording so far, the probe heard in it where `expected` (epoch ms) says it played. One line through the pairs
     // from context time `from` on: the two clocks only drift, and a single pair is coarse
     // (Firefox's jitter by milliseconds, 2026-09-19), which a line averages away. Only those from
     // `from`: Safari's pairs are off while its output settles (Safari 26.5, 2026-09-19: a line
@@ -272,17 +271,17 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
         anchorMs[k] = toPerformance(b.t0);
         at += b.samples.length;
       });
-      const times = typeof expected === "function" ? expected(toPerformance) : expected;
-      return backend.tuneMeasure(samples, ctx.sampleRate, anchorIndex, anchorMs, Float64Array.from(times));
+      const when = typeof expected === "function" ? expected(toPerformance) : expected;
+      return backend.tuneHear(samples, ctx.sampleRate, anchorIndex, anchorMs, when);
     };
 
-    // The reference: the same chirps, through Web Audio, at known context times, in rounds until
-    // a round agrees. Safari's microphone path takes seconds to settle after capture starts
+    // The reference: the same probe, through Web Audio, at a known context time, in rounds until
+    // one is heard. Safari's microphone path takes seconds to settle after capture starts
     // (Safari 26.5, 2026-09-19: the first ~5 s of chirps scattered over 330 ms, then six in a row
-    // within 0.2 ms), so an early round can't be trusted; Chrome and Firefox agree on the first.
-    const track = await ctx.decodeAudioData(backend.tuneTrack(REF_CHIRPS).buffer);
+    // within 0.2 ms), so an early round may not be; Chrome and Firefox hear the first.
+    const track = await ctx.decodeAudioData(backend.tuneProbeTrack().buffer);
 
-    // Before playing anything for thirty seconds, see that the microphone is delivering samples at
+    // Before playing anything, see that the microphone is delivering samples at
     // all. Digital zero throughout is a muted or absent input and no chirp will ever change it, so
     // say that now instead of at the end. A quiet room is not a fault: only exact silence stops us.
     enter("microphone", "Checking the microphone…", PREFLIGHT_MS);
@@ -303,51 +302,53 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
       const ref = ctx.createBufferSource();
       ref.buffer = track;
       ref.connect(ctx.destination);
-      ref.start(refWhen);
-      ref.stop(refWhen + REF_CHIRPS * 0.5 + 0.6);
-      await new Promise((r) => setTimeout(r, (REF_CHIRPS * 0.5 + 1.4) * 1000));
-      reference = measureNow((toPerformance) => Array.from({ length: REF_CHIRPS }, (_, i) => toPerformance(refWhen + 1.0 + i * 0.5)), refWhen);
+      // Web Audio plays at the time it is told from its first sample, so the reference skips all
+      // but half a second of the lead the video needs to settle.
+      ref.start(refWhen, LEAD - 0.5);
+      await new Promise((r) => setTimeout(r, REF_MS));
+      reference = measureNow((toPerformance) => toPerformance(refWhen + 0.5), refWhen);
       if (reference.error) console.debug("tune reference", round, reference);
     }
     if (reference.error) {
       throw new Error(referenceOn
         ? `The microphone didn't hear ${referenceOn}. Turn that up and try again.`
-        : "The microphone didn't hear this computer's own chirps. Turn the sound up and try again.");
+        : "The microphone didn't hear this computer's own sound. Turn the sound up and try again.");
     }
 
-    // The reader stops 0.3 s past the last chirp, not at the end of the track's trailing silence.
-    enter("video", "Listening to the video. Keep the room quiet…", (1.0 + (CHIRPS - 1) * 0.5 + 0.3) * 1000 + 600);
+    // The reader stops 1.2 s past the probe's start (PROBE_AFTER in crates/web/src/tune.rs), which
+    // is already later than the latest it is listened for.
+    enter("video", "Listening to the video…", (LEAD + PROBE + 1.2) * 1000);
     const played = ctx.currentTime;
     const expected = await play();
-    // When the readings put each chirp playing, for anything that wants to hold another clock
+    // When the readings put the probe playing, for anything that wants to hold another clock
     // against them (extension/test/tab-reading.cjs measures listen.js's constant this way).
     globalThis.dispatchEvent?.(new CustomEvent("together:tune-chirps", { detail: Array.from(expected) }));
-    await new Promise((r) => setTimeout(r, 600));
+    await new Promise((r) => setTimeout(r, 100));
     clearInterval(sampler);
     clearInterval(beat);
     phase = null;
-    const m = measureNow(expected, played);
-    if (!m.error) m.delayMs -= reference.delayMs;
-    if (m.error === "tooFewChirps") {
-      throw new Error(`Heard ${m.heard} of ${expected.length} chirps. Turn the sound up and try again.`);
-    }
-    if (m.error) console.debug("tune", { reference, m, expected });
-    if (m.error === "scattered") {
-      throw new Error("The chirps didn't agree. Try again somewhere quieter.");
-    }
-    const micErrorMs = stamped ? microphoneError(stamped.all(), expected, m.delayMs) : null;
+    if (!Number.isFinite(expected[0])) throw new Error("The video didn't play. Try again.");
+    const video = measureNow(expected[0], played);
+    if (video.error) console.debug("tune", { reference, video, expected });
+    if (video.error === "quiet") throw new Error("The microphone didn't hear the video. Turn the sound up and try again.");
+    if (video.error === "split") throw new Error("The room muddled the sound. Try again somewhere quieter.");
+    const delayMs = video.offsetMs - reference.offsetMs;
+    const micErrorMs = stamped ? microphoneError(stamped.all(), expected[0], delayMs) : null;
     // `captureMs` is what the reference round found: the microphone path's own delay, already
     // taken off `delayMs`. Kept because it is a property of the machine rather than of the take,
     // and whether it holds still across sessions decides whether it can stop being measured
     // every time (it is 8.4 s of the wait).
     return {
-      delayMs: m.delayMs,
-      spreadMs: m.spreadMs,
-      chirps: m.chirps,
+      delayMs,
+      // How much the probe's low and high halves disagree between the two rounds. Each round's
+      // own split is mostly the speaker being later at low pitches than high (1.7 ms on a MacBook
+      // Air's), which is the same in both when both go out of one speaker; what doesn't cancel is
+      // the take's own measure of how much to trust it.
+      spreadMs: Math.abs(video.splitMs - reference.splitMs),
       // What the reference round found and `delayMs` already has taken off, and the input it was
       // heard on. Kept because it is the number that says whether a tune is trustworthy, and
       // because it is what showed that it cannot be remembered between runs (see the note above).
-      captureMs: reference.delayMs,
+      captureMs: reference.offsetMs,
       capturedOn,
       when: new Date().toISOString(),
       referenceOn,
@@ -367,22 +368,25 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
 /**
  * How far this microphone's capture stamps are from the truth, ms, or null if that can't be told.
  *
- * The chirp tune has just measured how late the sound is, `delayMs`, the careful way. The same
- * chirps, heard by the microphone as Chrome stamps it, say `lag`: when the stamps put each chirp,
- * against when the video's readings put it playing. If the stamps were true the two would be
- * equal. They are not -- on a MacBook Air's own microphone the stamps run about 19 ms early,
- * steady to a tenth of a millisecond across browser launches (extension/test/cs.cjs) -- and the
- * difference is a property of the microphone, so it is kept by its name and measured once.
+ * The tune has just measured how late the sound is, `delayMs`, the careful way. The same probe,
+ * heard by the microphone as Chrome stamps it, says `lag`: when the stamps put it, against when the
+ * video's readings put it playing (`expectedMs`). If the stamps were true the two would be equal.
+ * They are not -- on a MacBook Air's own microphone the stamps run about 19 ms early, steady to a
+ * tenth of a millisecond across browser launches (extension/test/cs.cjs) -- and the difference is
+ * a property of the microphone, so it is kept by its name and measured once.
  */
-export function microphoneError(mic, expected, delayMs) {
-  const starts = Array.from(expected).filter(Number.isFinite);
-  if (starts.length < 3 || !mic.pcm.length) return null;
-  // Narrower than the film's range: chirps half a second apart alias at +-500 ms, and a tune
-  // that has just succeeded is never that far out.
-  const r = measureLag(chirpTrain(starts), mic, { minLagMs: -200, maxLagMs: 300 });
-  if (r.error) {
-    console.debug("tune: couldn't read the microphone's stamps", r);
+export function microphoneError(mic, expectedMs, delayMs) {
+  if (!Number.isFinite(expectedMs) || !mic.pcm.length) return null;
+  const heard = backend.tuneHear(
+    mic.pcm,
+    mic.index[0][2],
+    Uint32Array.from(mic.index, ([at]) => at),
+    Float64Array.from(mic.index, ([, ms]) => ms),
+    expectedMs,
+  );
+  if (heard.error) {
+    console.debug("tune: couldn't read the microphone's stamps", heard);
     return null;
   }
-  return delayMs - r.lagMs;
+  return delayMs - heard.offsetMs;
 }
