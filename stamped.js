@@ -2,7 +2,7 @@
 //
 // An AudioContext is the wrong clock for this. The tab's sound and the microphone read into one
 // context lag each other by a different amount every time a context opens -- 7.4 to 10.5 ms over
-// five (extension/test/k-const.cjs) -- which the chirp tune never sees, because its reference
+// five (extension/test/k-const.cjs) -- which the tune never sees, because its reference
 // round cancels it, and passive tuning has no reference round. MediaStreamTrackProcessor hands
 // over each chunk with the capture timestamp Chrome gave it instead, and by those the same two
 // streams lag each other by the same amount in every context, to 0.05 ms, across browser launches
@@ -111,25 +111,26 @@ export function unpack({ pcm, index }) {
 }
 
 /**
- * The tuning chirps as a stamped stream: chirp k of `startsMs` starting exactly at that epoch time,
+ * The tuning probe as a stamped stream: one starting exactly at each epoch time in `startsMs`,
  * silence between. It is what the microphone should have heard if the sound were on time, so
  * measuring the microphone against it says how late the sound was by the microphone's own stamps
- * (see `micErrorMs` in tune.js). The chirp is `together_core::tune::chirp`: 40 ms, 1 to 6 kHz,
- * linear, Hann-windowed, drawn at each chirp's exact start rather than rounded to a sample.
+ * (see `micErrorMs` in tune.js). The probe is `together_core::tune::probe`: 0.7 s, a rising log
+ * sweep from 400 Hz to 6 kHz with 20 ms raised-cosine ends, drawn at each exact start rather than
+ * rounded to a sample.
  */
-export function chirpTrain(startsMs, rate = 48000) {
+export function probeStream(startsMs, rate = 48000) {
   const t0 = startsMs[0] - 1000;
-  const n = Math.ceil(((startsMs.at(-1) + 1000 - t0) / 1000) * rate);
+  const n = Math.ceil(((startsMs.at(-1) + 2000 - t0) / 1000) * rate);
   const pcm = new Float32Array(n);
-  const secs = 0.04;
-  const k = (6000 - 1000) / secs;
-  const len = Math.round(secs * rate);
+  const [f0, f1, secs, fade] = [400, 6000, 0.7, 0.02];
+  const k = Math.log(f1 / f0);
   for (const start of startsMs) {
     const from = ((start - t0) / 1000) * rate;
-    for (let i = Math.ceil(from); i < from + len && i < n; i++) {
+    for (let i = Math.ceil(from); i < from + secs * rate && i < n; i++) {
       const t = (i - from) / rate;
-      const window = 0.5 - 0.5 * Math.cos((2 * Math.PI * (t * rate)) / (len - 1));
-      pcm[i] += window * Math.sin(2 * Math.PI * (1000 * t + 0.5 * k * t * t));
+      const edge = Math.max(0, Math.min(t, secs - t) / fade);
+      const window = edge < 1 ? 0.5 - 0.5 * Math.cos(Math.PI * edge) : 1;
+      pcm[i] += window * Math.sin(((2 * Math.PI * f0 * secs) / k) * (Math.exp((t / secs) * k) - 1));
     }
   }
   return { pcm, index: [[0, t0, rate]] };

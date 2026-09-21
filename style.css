@@ -237,6 +237,10 @@ input {
   animation: rise-in 0.3s var(--ease-out);
 }
 
+a.btn {
+  text-decoration: none;
+}
+
 .quiet-link {
   padding: 2px 4px;
   border: 0;
@@ -384,17 +388,23 @@ input {
   font-size: var(--step--1);
 }
 
-.relay-hint {
-  margin: -0.5rem 0 0;
-  text-align: center;
-}
-
 /* An invite this version can't use: only the reason, and the way home, are left. */
 .invited.is-refused [data-stream],
 .invited.is-refused [data-own-copy],
 .invited.is-refused [data-own-copy-hint],
 .invited.is-refused .name-slot {
   display: none;
+}
+
+/* A room on a site's own player: joined through the extension, so nothing here takes a file. */
+.invited.is-on-site [data-dropzone] {
+  display: none;
+}
+
+.on-site-where {
+  font-size: var(--step-1);
+  font-weight: 600;
+  text-wrap: balance;
 }
 
 .name-slot {
@@ -438,6 +448,18 @@ input {
 
 .join-form .btn {
   min-height: 44px;
+}
+
+.tune-offer {
+  display: grid;
+  justify-items: center;
+  gap: 0.2rem;
+}
+
+.tune-how {
+  margin: 0;
+  color: var(--faint);
+  text-align: center;
 }
 
 .tune-row {
@@ -647,6 +669,19 @@ input {
   align-items: center;
   gap: 0.25rem;
   flex: none;
+}
+
+/* Show timings: small and quiet, for whoever looks for it. */
+.timings-toggle {
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.timings-toggle[aria-pressed="true"] {
+  color: var(--text);
+  background: var(--fill);
 }
 
 /* People: one circle each. Yours is solid and everyone else's is drawn in outline, like the mark.
@@ -1350,6 +1385,11 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   background: radial-gradient(closest-side, rgb(0 0 0 / 0.7), rgb(0 0 0 / 0));
 }
 
+.countdown-dial {
+  display: grid;
+  place-items: center;
+}
+
 .countdown-number {
   grid-area: 1 / 1;
   place-self: center;
@@ -1421,10 +1461,6 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   }
 }
 
-.countdown.is-resuming {
-  gap: 0.9rem;
-}
-
 .join-playback {
   display: grid;
   justify-items: center;
@@ -1489,11 +1525,30 @@ input[type="range"]:focus-visible::-moz-range-thumb {
   font-size: var(--step--1);
 }
 
-.popover-subtitle {
-  margin-top: 0.5rem;
-  color: var(--muted);
-  font-size: var(--step--1);
-  font-weight: 600;
+.popover-faint {
+  color: var(--faint);
+}
+
+.popover-faint code {
+  font-family: var(--font-mono);
+  font-size: 0.95em;
+}
+
+/* The QR code: black modules on white with its quiet zone, as scanners expect, drawn square-edged
+   at whole-module scale so a phone reads it off the screen first time. */
+.invite-qr {
+  justify-self: center;
+  margin: 0.25rem 0 0.35rem;
+  border-radius: 10px;
+  background: var(--white);
+  overflow: hidden;
+  line-height: 0;
+}
+
+.invite-qr svg {
+  display: block;
+  shape-rendering: crispEdges;
+  image-rendering: pixelated;
 }
 
 .copy-row {
@@ -1503,6 +1558,10 @@ input[type="range"]:focus-visible::-moz-range-thumb {
 
 .copy-row .input {
   min-height: 40px;
+}
+
+.copy-row .btn {
+  flex: none;
 }
 
 /* ---------- Dropping a file anywhere ---------- */

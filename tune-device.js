@@ -5,7 +5,7 @@
 // wasm in. `outputNow` is the one part that needs a browser, and nothing in the tests calls it.
 
 /**
- * Which output device the reference chirps should leave by, given what `enumerateDevices()`
+ * Which output device the reference probe should leave by, given what `enumerateDevices()`
  * returned for kind `audiooutput`. A built-in output is the only one whose reported latency can be
  * trusted; through the device the user is listening on, the reference cancels the very delay we
  * are measuring (PLANS/TUNING.md:40).
@@ -63,6 +63,16 @@ export function currentOutput(devices) {
 export function chooseTune(on, byDevice, last) {
   if (!on) return { on: null, matched: false, tune: last ?? null };
   return { on, matched: Boolean(byDevice?.[on]), tune: byDevice?.[on] ?? null };
+}
+
+/**
+ * Whether an output, by the name `currentOutput` gave it, is worn: headphones, earbuds, a headset.
+ * A microphone can't hear inside them, so they can't be tuned, and the page says so rather than
+ * offering to. By name, because that is all the browser says; a name that doesn't give it away
+ * (or no name, before the microphone is granted) is offered the tune as any other output is.
+ */
+export function worn(label) {
+  return /head ?phones?|headset|airpods|ear ?buds|earphones?|\bbuds/i.test(label ?? "");
 }
 
 /**

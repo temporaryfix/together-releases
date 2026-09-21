@@ -65,9 +65,9 @@ export interface StreamHead {
     end: number;
 }
 
-export interface Person { id: string; name: string; initials: string; hue: number }
-/** The sync meter: `gapMs` from the room (+ ahead) give or take `errMs`, and words for it. */
-export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown" | "off" | "none"; label: string; detail: string; gapMs: number | null; errMs: number | null }
+export interface Person { id: string; name: string; initials: string; hue: number; named: boolean }
+/** The sync meter: `gapMs` from the room (+ ahead) give or take `errMs`, words for it, and `timing`, the figures short ("+3 ms ±1 ms"), for Show timings. */
+export interface SyncBadge { level: "good" | "fair" | "poor" | "unknown" | "off" | "none"; label: string; detail: string; gapMs: number | null; errMs: number | null; timing: string | null }
 /** How we reach a peer. `null` until a connection is established. */
 export type LinkView =
 | { type: "direct" }
@@ -80,7 +80,7 @@ export type Following = "yes" | "loading" | "off";
 export interface PeerView { who: Person; role: Role; following: Following; rttMs: number | null; offsetMs: number | null; sync: SyncBadge; sameMedia: boolean; ready: boolean; stalled: boolean; link: LinkView | null }
 
 /** A checked invite, and the room's own relay if it names one. */
-export interface InviteInfo { ticket: string; relay: string | null }
+export interface InviteInfo { ticket: string; relay: string | null; page: string | null; link: string }
 
 /** The ready check from your side. `open` is whether saying so would do anything. */
 export interface ReadyView { mine: boolean; count: number; total: number; open: boolean; label: string }
@@ -157,28 +157,6 @@ export class IntoUnderlyingSource {
     [Symbol.dispose](): void;
     cancel(): void;
     pull(controller: ReadableStreamDefaultController): Promise<any>;
-}
-
-/**
- * Tuning a `<video>` in another document, through the extension's bridge ([`bridge`]): the tab
- * has the tuning video open (its chirps timed as [`tune_track`]'s), the host feeds this what the
- * tab reports, and [`RemoteTune::play`] plays it from the start and says when each chirp played.
- */
-export class RemoteTune {
-    free(): void;
-    [Symbol.dispose](): void;
-    /**
-     * Something the tab reported: a `PlayerInput`, as `Session.playerInput` takes.
-     */
-    input(input: any): void;
-    /**
-     * `send` is called with each command for the tab, as `SessionOptions.remote` is.
-     */
-    constructor(send: Function);
-    /**
-     * Play from the start, and say when the readings put each chirp playing, in epoch ms. Once.
-     */
-    play(lead: number, chirps?: number | null): Promise<Float64Array>;
 }
 
 export class Session {
@@ -278,9 +256,20 @@ export function formatTime(seconds: number): string;
 export function inspectInvite(invite: string): InviteInfo;
 
 /**
+ * The invite as the link everyone copies, with the web page the room is watching in it where
+ * there is one (a room on a site's own player): opening the link opens that page and joins.
+ */
+export function inviteLink(invite: string, page?: string | null): string;
+
+/**
  * Validate an invite (a ticket or a link containing one) and return the bare ticket.
  */
 export function parseInvite(invite: string): string;
+
+/**
+ * `text` as a QR code: an SVG, black on white with its quiet zone, that scales to any size.
+ */
+export function qrSvg(text: string): string;
 
 export function start(): void;
 
@@ -293,29 +282,15 @@ export function start(): void;
 export function tuneHear(samples: Float32Array, rate: number, anchor_index: Uint32Array, anchor_ms: Float64Array, expected_ms: number): any;
 
 /**
- * Measure a recording: `samples` (mono, at `rate`), whose sample `anchor_index[k]` reached the
- * microphone at `anchor_ms[k]` (epoch ms), against `expected_ms`, when the readings
- * put each chirp playing. Gives `{ delayMs, spreadMs, chirps }`, or `{ error, delayMs?, spreadMs? }`
- * saying why it doesn't count.
- */
-export function tuneMeasure(samples: Float32Array, rate: number, anchor_index: Uint32Array, anchor_ms: Float64Array, expected_ms: Float64Array): any;
-
-/**
- * Play `url` (a tuning track with its first chirp `lead` seconds in: [`tune_track`]) in `video`,
- * read it as a room would, and say when its readings put each chirp playing, in epoch ms. The
- * element must already be allowed to play sound (the page primes it in the click that started
- * tuning).
- */
-export function tunePlay(video: HTMLVideoElement, url: string, lead: number, chirps?: number | null): Promise<Float64Array>;
-
-/**
  * The probe itself, at `rate`: for the page to draw where the microphone should have heard it.
  */
 export function tuneProbe(rate: number): Float32Array;
 
 /**
- * [`tune_play`] for a probe track ([`tune_probe_track`], its probe `lead` seconds in: [`PROBE_LEAD`]): when the
- * readings put the probe starting, in epoch ms, as a one-element array.
+ * Play `url` (a probe track, [`tune_probe_track`], its probe `lead` seconds in: [`PROBE_LEAD`]) in
+ * `video`, read it as a room would, and say when its readings put the probe starting, in epoch ms,
+ * as a one-element array. The element must already be allowed to play sound (the page primes it
+ * in the click that started tuning).
  */
 export function tuneProbePlay(video: HTMLVideoElement, url: string, lead: number): Promise<Float64Array>;
 
@@ -323,11 +298,6 @@ export function tuneProbePlay(video: HTMLVideoElement, url: string, lead: number
  * The tuning probe: one sweep, [`PROBE_LEAD`] seconds in, as a WAV file ([`tune::probe_track`]).
  */
 export function tuneProbeTrack(): Uint8Array;
-
-/**
- * The tuning track: `chirps` chirps as a WAV file, for the page to hand the element as a blob.
- */
-export function tuneTrack(chirps?: number | null): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
@@ -337,7 +307,6 @@ export interface InitOutput {
     readonly __wbg_intounderlyingbytesource_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsink_free: (a: number, b: number) => void;
     readonly __wbg_intounderlyingsource_free: (a: number, b: number) => void;
-    readonly __wbg_remotetune_free: (a: number, b: number) => void;
     readonly __wbg_session_free: (a: number, b: number) => void;
     readonly body_cancel: (a: number) => void;
     readonly body_next: (a: number) => number;
@@ -353,10 +322,9 @@ export interface InitOutput {
     readonly intounderlyingsink_write: (a: number, b: number) => number;
     readonly intounderlyingsource_cancel: (a: number) => void;
     readonly intounderlyingsource_pull: (a: number, b: number) => number;
+    readonly inviteLink: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly parseInvite: (a: number, b: number, c: number) => void;
-    readonly remotetune_input: (a: number, b: number, c: number) => void;
-    readonly remotetune_new: (a: number) => number;
-    readonly remotetune_play: (a: number, b: number, c: number) => number;
+    readonly qrSvg: (a: number, b: number, c: number) => void;
     readonly session_clockMs: (a: number) => number;
     readonly session_host: (a: number) => number;
     readonly session_join: (a: number, b: number, c: number) => number;
@@ -375,23 +343,20 @@ export interface InitOutput {
     readonly session_ticket: (a: number, b: number) => void;
     readonly start: () => void;
     readonly tuneHear: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number) => number;
-    readonly tuneMeasure: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => number;
-    readonly tunePlay: (a: number, b: number, c: number, d: number, e: number) => number;
     readonly tuneProbe: (a: number, b: number) => void;
     readonly tuneProbePlay: (a: number, b: number, c: number, d: number) => number;
     readonly tuneProbeTrack: (a: number) => void;
-    readonly tuneTrack: (a: number, b: number) => void;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_21501: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_21503: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_11292: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_12979: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_8710: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_894: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_11087: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12193: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_12275: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_21339: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21598: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_21600: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_11389: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_13074: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_865: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_8807: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_11184: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12290: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_12372: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_21436: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

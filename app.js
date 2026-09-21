@@ -1,9 +1,10 @@
-// together in the browser: landing, invite and room screens around a room session from `backend.js`.
+// Together in the browser: landing, invite and room screens around a room session from `backend.js`.
 
 import { backend } from "./backend.js";
 import { MediaLoadError, fileSource, pickFile, streamSource } from "./media.js";
 import { canStream } from "./stream.js";
 import { outputDelayMs, tune, tuneNow } from "./tune.js";
+import { worn } from "./tune-device.js";
 import { Toasts, avatar, calm, copyText, h, icon, log, nudge, paintRange, prefs, setIcon } from "./ui.js";
 
 const wasm = backend.ready;
@@ -189,7 +190,11 @@ class Drop {
     }
     // Opening a room: the file is already chosen.
     if (room.active) return undefined;
-    if (!screens.invited.hidden) return { title: "Drop your copy", take: joinWith, screen: screens.invited };
+    if (!screens.invited.hidden) {
+      // A room on a site's player has no file to take.
+      if (screens.invited.classList.contains("is-on-site")) return undefined;
+      return { title: "Drop your copy", take: joinWith, screen: screens.invited };
+    }
     return { title: "Drop to watch", take: startWith, screen: screens.landing };
   }
 
@@ -250,7 +255,7 @@ function setBusy(screen, busy) {
 
 // Landing
 
-const landingName = new NameField($("[data-name-slot]", screens.landing), "Watching as");
+const landingName = new NameField($("[data-name-slot]", screens.landing), "Your name:");
 let pendingFile;
 
 function startWith(file) {
@@ -295,7 +300,7 @@ inviteInput.addEventListener("input", () => {
 
 // Invited
 
-const invitedName = new NameField($("[data-name-slot]", screens.invited), "Joining as");
+const invitedName = new NameField($("[data-name-slot]", screens.invited), "Your name:");
 let pendingJoin;
 
 /** Join the room, streaming the video from it unless `file` is our own copy. */
@@ -303,6 +308,7 @@ function joinWith(file) {
   setError(screens.invited);
   const invite = inviteFromHash();
   if (!invite) return route();
+  if (screens.invited.classList.contains("is-on-site")) return;
   const name = invitedName.require();
   if (!name) {
     pendingJoin = () => joinWith(file);
@@ -317,12 +323,39 @@ wireFileInput(screens.invited, joinWith);
 $("[data-stream]", screens.invited).addEventListener("click", () => joinWith());
 
 /**
- * What the invite in the URL allows: refused outright if it's from another version of together,
- * and streaming only through a relay (yours, or the room's own that the invite names).
+ * The extension's claim on invite links, for rooms on a site's own player.
+ *
+ * Contract with the browser extension: its content script runs on this site at document_start and
+ * sets `document.documentElement.dataset.togetherExtension` (any non-empty value, e.g. its
+ * version) before this module runs. For an invite whose ticket carries a page (`InviteInfo.page`),
+ * the extension takes over the tab itself: it opens that page and joins the room there. So when
+ * the attribute is set, this page only says "Opening in Together…" and does nothing else: no
+ * install prompt, no joining. Invites without a page are joined here as always, extension or not.
+ * The attribute is also watched after load, in case the content script is late.
+ */
+const extensionHere = () => Boolean(document.documentElement.dataset.togetherExtension);
+new MutationObserver(() => {
+  const invite = inviteFromHash();
+  if (invite && !screens.invited.hidden) renderInvited(invite);
+}).observe(document.documentElement, { attributes: true, attributeFilter: ["data-together-extension"] });
+
+/** "www.youtube.com", from a page's address, for saying where a room is. */
+function siteOf(page) {
+  try {
+    return new URL(page).host || page;
+  } catch {
+    return page;
+  }
+}
+
+/**
+ * What the invite in the URL allows: refused outright if it's from another version of Together,
+ * handed to the extension if the room is on a site's own player, and streaming only through a
+ * relay (yours, or the room's own that the invite names).
  */
 async function renderInvited(invite) {
   const screen = screens.invited;
-  const hint = $("[data-relay-hint]", screen);
+  const onSite = $("[data-on-site]", screen);
   let info;
   try {
     await wasm;
@@ -331,16 +364,26 @@ async function renderInvited(invite) {
     // Still loading, or broken: leave the choices as they are and let joining say what's wrong.
     if (!error?.message || inviteFromHash() !== invite) return;
     screen.classList.add("is-refused");
+    screen.classList.remove("is-on-site");
+    onSite.hidden = true;
     setError(screen, error.message);
-    hint.hidden = true;
     return;
   }
   if (inviteFromHash() !== invite) return;
   screen.classList.remove("is-refused");
-  // The room's relay is used when you haven't chosen one, and it's worth saying whose it is.
-  const roomRelay = !prefs.relay && info.relay;
-  hint.textContent = roomRelay ? `via ${info.relay} (the room’s relay)` : "";
-  hint.hidden = !roomRelay;
+  // A room on a site's player: nothing to drop or stream here. Say where it is and how to get in.
+  screen.classList.toggle("is-on-site", Boolean(info.page));
+  onSite.hidden = !info.page;
+  if (info.page) {
+    const handed = extensionHere();
+    $("[data-on-site-where]", screen).textContent = handed ? "Opening in Together…" : `Your friend is watching on ${siteOf(info.page)}.`;
+    $("[data-on-site-how]", screen).hidden = handed;
+    $("[data-on-site-install]", screen).hidden = handed;
+    const page = $("[data-on-site-page]", screen);
+    page.href = info.page;
+    page.hidden = handed;
+    return;
+  }
   // A browser can only stream the room's copy through a relay that isn't public, so without one,
   // don't offer it: go straight to opening your own copy rather than finding out after a wait.
   const stream = canStream() && Boolean(prefs.relay || info.relay);
@@ -354,14 +397,27 @@ async function renderInvited(invite) {
   const status = $("[data-tune-status]");
   // A tune belongs to an output, not to a browser, so say which one this is (tune.js, `tuneNow`).
   // Plugging headphones in should read as untuned, not as tuned by somebody else's number.
+  const how = $("[data-tune-how]");
   const show = async () => {
     const { on, matched, tune: t } = await tuneNow();
+    // Worn outputs can't be tuned at all, so say that plainly rather than offer it.
+    const wornNow = worn(on);
+    button.hidden = wornNow;
+    how.hidden = wornNow || Boolean(t);
+    if (wornNow) {
+      status.textContent = "A microphone can’t hear inside headphones.";
+      return;
+    }
     if (!t && on) {
       status.textContent = `${on} hasn’t been tuned.`;
       button.textContent = "Tune it";
       return;
     }
-    if (!t) return;
+    if (!t) {
+      status.textContent = "Sound early or late?";
+      button.textContent = "Tune it";
+      return;
+    }
     const ms = Math.round(t.delayMs);
     const where = matched && on ? ` for ${on}` : "";
     status.textContent = `Sound tuned${where}: ${ms > 0 ? "+" : ""}${ms} ms.`;
@@ -387,7 +443,7 @@ async function renderInvited(invite) {
       li.style.setProperty("--through", i < at ? 1 : i === at ? fraction.toFixed(3) : 0);
     }
   };
-  const row = $(".tune-row");
+  const row = $(".tune-offer");
   button.addEventListener("click", async () => {
     button.disabled = true;
     // The panel says what is happening, so the row that offered the tune gets out of the way
@@ -423,6 +479,9 @@ const SLOW_CONNECT_MS = 12000;
 const ARRIVAL_QUIET_MS = 5000;
 /** How long the controls show a play, pause or seek we asked for before the video has made it. */
 const INTENT_MS = 1000;
+
+/** About how wide the invite's QR code is drawn, CSS px. */
+const QR_PX = 208;
 
 /** How long the countdown's last beat stays on screen after playback starts. */
 const GO_MS = 500;
@@ -473,7 +532,7 @@ class Room {
       await wasm;
     } catch {
       setBusy(from, false);
-      setError(from, "together couldn’t load. Reload the page to try again.");
+      setError(from, "Together couldn’t load. Reload the page to try again.");
       return;
     }
 
@@ -506,6 +565,7 @@ class Room {
         file: source?.file,
         outputDelay: await outputDelayMs(),
       };
+      this.tuneMs = options.outputDelay;
       log.info(invite ? "joining a room" : "hosting a room", {
         stream: options.stream,
         relay: options.relay ?? "public",
@@ -525,13 +585,8 @@ class Room {
     this.phase = "live";
     this.openedAt = performance.now();
     this.slowTimer = setTimeout(() => this.renderOverlay(), SLOW_CONNECT_MS);
-    const link = `${location.origin}${location.pathname}#${this.session.ticket}`;
-    $("[data-invite-link]", this.root).value = link;
-    $("[data-invite-cli]", this.root).value = `together ${this.session.ticket}`;
+    this.showInvite(backend.inviteLink(this.session.ticket));
     this.inviteButton.disabled = false;
-    const relay = $("[data-invite-relay]", this.root);
-    relay.textContent = this.session.relay ? `Joins via ${this.session.relay}, the room’s relay.` : "";
-    relay.hidden = !this.session.relay;
     this.session.onEvent((event) => this.handle(event));
     this.renderOverlay();
     this.wake();
@@ -556,7 +611,7 @@ class Room {
   show(source) {
     this.source = source;
     $("[data-title]", this.root).textContent = source.title;
-    document.title = `${source.title} · together`;
+    document.title = `${source.title} · Together`;
   }
 
   /** Someone in the room offered a copy: play it as it arrives. */
@@ -585,7 +640,7 @@ class Room {
     this.source = undefined;
     if (document.fullscreenElement) document.exitFullscreen?.();
     if (this.popover.matches(":popover-open")) this.popover.hidePopover();
-    document.title = "together";
+    document.title = "Together";
   }
 
   reset() {
@@ -598,6 +653,8 @@ class Room {
     this.refused = undefined;
     this.role = "viewer";
     this.peers = new Map();
+    /** People who joined before their name arrived: their arrival is said once it has. */
+    this.unannounced = new Set();
     this.hadPeers = false;
     this.ready = undefined;
     this.waiting = undefined;
@@ -640,13 +697,15 @@ class Room {
         if (!this.peers.has(event.who.id)) {
           this.peers.set(event.who.id, { who: event.who, sync: { level: "unknown", label: "syncing…", detail: "Measuring sync" } });
         }
+        if (event.who.named === false) this.unannounced.add(event.who.id);
         this.renderPeople();
-        if (this.settled()) this.toasts.show(event.message, { person: event.who });
+        if (this.settled() && event.who.named !== false) this.toasts.show(event.message, { person: event.who });
         break;
       case "peerLeft":
         this.peers.delete(event.who.id);
+        // Someone who never showed, because their name never came, leaves without a word.
+        if (!this.unannounced.delete(event.who.id)) this.toasts.show(event.message, { person: event.who });
         this.renderPeople();
-        this.toasts.show(event.message, { person: event.who });
         break;
       case "changed":
         if (!event.local) this.toasts.show(event.message, { person: event.who, key: `${event.who.id}:${event.action}` });
@@ -700,9 +759,10 @@ class Room {
     const mine = this.blocked ? { level: "unknown", label: "needs a click", detail: "Waiting for a click to start playback" } : this.mySync;
     const held = this.waiting?.type === "stalled" && this.waiting.local;
     const rows = this.me
-      ? [{ who: { ...this.me, name: "You" }, role: this.role, sync: mine, ready: this.ready?.mine === true, stalled: held, you: true }]
+      ? [{ who: { ...this.me, name: `${this.me.name} (you)` }, role: this.role, sync: mine, ready: this.ready?.mine === true, stalled: held, you: true }]
       : [];
-    rows.push(...this.peers.values());
+    // Someone whose name hasn't arrived yet isn't shown at all, rather than as "Someone".
+    rows.push(...[...this.peers.values()].filter((row) => row.who.named !== false));
     // Someone on their way out is still fading, and no longer counts.
     const present = [...this.people.children].filter((li) => !li.classList.contains("is-leaving"));
     const existing = new Map(present.map((li) => [li.dataset.id, li]));
@@ -717,10 +777,17 @@ class Room {
           "li",
           { class: "person", "data-id": id, style: { "--i": index } },
           face(row.who, row.you),
-          h("span", { class: "person-text", "aria-hidden": "true" }, h("span", { class: "person-name" }, row.who.name), h("span", { class: "person-note" })),
+          h("span", { class: "person-text", "aria-hidden": "true" }, h("span", { class: "person-name" }), h("span", { class: "person-note" })),
           h("span", { class: "visually-hidden", "data-status": "" }),
         );
+        // Their arrival, held back until there was a name to say it with.
+        if (this.unannounced.delete(id) && this.settled()) this.toasts.show(`${row.who.name} joined`, { person: row.who });
       }
+      // A name can arrive, or change, after the row is made: keep the circle and the words in step.
+      const nameEl = $(".person-name", li);
+      if (nameEl.textContent !== row.who.name) nameEl.textContent = row.who.name;
+      const initials = $(".avatar", li);
+      if (initials.textContent !== row.who.initials) initials.textContent = row.who.initials;
       const live = [...this.people.children].filter((el) => !el.classList.contains("is-leaving"));
       if (live[index] !== li) this.people.insertBefore(li, live[index] ?? null);
       const sync = row.sync ?? { level: "unknown", label: "syncing…", detail: "Measuring sync" };
@@ -735,17 +802,20 @@ class Room {
       const role = row.role ?? "viewer";
       if (li.dataset.role !== role) li.dataset.role = role;
       drawMeter(li, sync);
-      // Words only when something is off; the circle says the rest.
+      // Words only when something is off; the circle says the rest. Show timings puts the figures
+      // there instead, always, with this output's tune on your own.
       const noted = row.stalled || ["poor", "off"].includes(sync.level) || row.following === "loading" || (row.you && this.blocked);
-      const note = noted ? sync.label : "";
+      const tune = row.you && this.tuneMs ? ` · tune ${signedMs(this.tuneMs)}` : "";
+      const note = prefs.timings && sync.timing && !row.stalled ? `${sync.timing}${tune}` : noted ? sync.label : "";
       const noteEl = $(".person-note", li);
       if (noteEl.textContent !== note) noteEl.textContent = note;
       const aside = row.ready && !row.stalled ? " · ready to start" : "";
       // How we reach them: direct is worth saying too, so "nothing shown" never has to mean
       // "we couldn't tell" and "it's fine" at the same time.
+      // Only how, never the relay's host name: that's no one's business but a log's.
       const via =
         row.link?.type === "relayed"
-          ? ` · via relay ${row.link.relay}`
+          ? " · through a relay"
           : row.link?.type === "direct"
             ? " · direct"
             : row.link?.type === "indirect"
@@ -980,20 +1050,25 @@ class Room {
     }
     const countdown = this.countdown();
     if (countdown) {
-      const { tick, resuming, message } = countdown;
+      const { tick, resuming } = countdown;
+      // The same count whether it's the start or after a pause; only the words say which.
+      const caption = `${resuming ? "Carrying on" : "Starting"} in ${tick}…`;
       return {
         kind: "countdown",
         // Each second is its own element, so the number lands rather than ticking over.
-        tick: resuming ? "resuming" : tick,
-        // Nothing dims the first frame of the film.
+        tick,
+        // Nothing dims the first frame of the film, nor a film someone paused a moment ago.
         clear: resuming || tick === 0,
         render: () =>
-          resuming
-            ? h("div", { class: "countdown is-resuming" }, markPulse(), h("p", { class: "countdown-caption" }, message))
-            : tick === 0
-              // The film is the payoff; all that is left is the ring opening out of the last beat.
-              ? h("div", { class: "countdown is-go" }, h("span", { class: "countdown-ring" }))
-              : h("div", { class: "countdown" }, sweep(countdown.left), h("span", { class: "countdown-number" }, String(tick))),
+          tick === 0
+            // The film is the payoff; all that is left is the ring opening out of the last beat.
+            ? h("div", { class: "countdown is-go" }, h("span", { class: "countdown-ring" }))
+            : h(
+                "div",
+                { class: "countdown", role: "status" },
+                h("div", { class: "countdown-dial" }, sweep(countdown.left), h("span", { class: "countdown-number", "aria-hidden": "true" }, String(tick))),
+                h("p", { class: "countdown-caption" }, caption),
+              ),
       };
     }
     if (this.waiting?.type === "stalled" || this.waiting?.type === "ad") {
@@ -1021,7 +1096,7 @@ class Room {
             "button",
             { class: "btn btn-primary", type: "button", onclick: () => this.copyInvite() },
             icon("i-link"),
-            h("span", {}, "Copy invite link"),
+            h("span", {}, "Copy link"),
           ),
         }),
     };
@@ -1087,6 +1162,17 @@ class Room {
     });
 
     this.readyButton.addEventListener("click", () => this.toggleReady());
+    this.timingsButton = $("[data-timings]", this.root);
+    const showTimings = () => {
+      const on = prefs.timings;
+      this.timingsButton.setAttribute("aria-pressed", String(on));
+      this.timingsButton.title = this.timingsButton.ariaLabel = on ? "Hide timings" : "Show timings";
+    };
+    showTimings();
+    this.timingsButton.addEventListener("click", () => {
+      prefs.timings = !prefs.timings;
+      showTimings();
+    });
     $("[data-leave]", this.root).addEventListener("click", () => this.leave());
     $("[data-mismatch-close]", this.root).addEventListener("click", () => {
       this.mismatch.hidden = true;
@@ -1096,15 +1182,14 @@ class Room {
       if (e.newState === "open") this.copyInvite({ quiet: true });
       else this.wake();
     });
-    for (const button of this.popover.querySelectorAll("[data-copy]")) {
-      button.addEventListener("click", async () => {
-        const input = button.dataset.copy === "cli" ? $("[data-invite-cli]", this.root) : $("[data-invite-link]", this.root);
-        if (await copyText(input.value, input)) {
-          flashCopied(button);
-          this.toasts.show(button.dataset.copy === "cli" ? "Command copied" : "Invite link copied", { icon: "i-check" });
-        }
-      });
-    }
+    const copyButton = $("[data-copy-link]", this.popover);
+    copyButton.addEventListener("click", async () => {
+      const input = $("[data-invite-link]", this.root);
+      if (await copyText(input.value, input)) {
+        flashCopied(copyButton);
+        this.toasts.show("Link copied", { icon: "i-check", key: "copied" });
+      }
+    });
 
     this.stage.addEventListener("pointermove", () => this.wake());
     this.stage.addEventListener("pointerdown", () => this.wake());
@@ -1174,11 +1259,35 @@ class Room {
     this.wake();
   }
 
+  /**
+   * The invite link and its QR code, in the popover. The link is the web app's public address
+   * whichever copy of it this page is, so it opens the same way for everyone (and in a terminal).
+   */
+  showInvite(link) {
+    $("[data-invite-link]", this.root).value = link;
+    const qr = $("[data-invite-qr]", this.root);
+    try {
+      qr.innerHTML = backend.qrSvg(link);
+      // The SVG is one unit a module. Drawn at a whole number of pixels a module, about 200 px
+      // across, every module is the same size and its edges land on pixels.
+      const svg = qr.firstElementChild;
+      const modules = svg.viewBox.baseVal.width || Number(svg.getAttribute("width")) || 1;
+      const size = `${Math.max(3, Math.floor(QR_PX / modules)) * modules}px`;
+      svg.setAttribute("width", size);
+      svg.setAttribute("height", size);
+      qr.hidden = false;
+    } catch {
+      // Too long for a QR code: the link alone still works.
+      qr.replaceChildren();
+      qr.hidden = true;
+    }
+  }
+
   async copyInvite({ quiet = false } = {}) {
     if (!this.session) return;
     const input = $("[data-invite-link]", this.root);
     const copied = await copyText(input.value);
-    if (copied) this.toasts.show("Invite link copied", { icon: "i-check" });
+    if (copied) this.toasts.show("Link copied", { icon: "i-check", key: "copied" });
     else if (!quiet) this.popover.showPopover();
   }
 
@@ -1344,6 +1453,12 @@ const METER_SWEEP_DEG = 70;
 /** The shortest arc drawn, so a precise measurement still shows. */
 const METER_MIN_DEG = 16;
 
+/** "+42 ms", "−3 ms", "0 ms". */
+const signedMs = (ms) => {
+  const size = Math.abs(ms).toFixed(0);
+  return `${size === "0" ? "" : ms > 0 ? "+" : "−"}${size} ms`;
+};
+
 /**
  * The sync meter, on the rim of someone's circle: a short arc hanging at the bottom when they're
  * with the room, sliding round towards the right when ahead and the left when behind. Its length
@@ -1391,10 +1506,13 @@ function flashCopied(button) {
   const label = $("span", button);
   setIcon(svg, "i-check");
   nudge(svg, [{ transform: "scale(0.4)" }, { transform: "none" }], { duration: 420 });
+  // Its own words to come back to, even when pressed again before they have.
+  button.dataset.label ??= label.textContent;
+  const was = button.dataset.label;
   label.textContent = "Copied";
   setTimeout(() => {
     setIcon(svg, "i-copy");
-    label.textContent = "Copy";
+    label.textContent = was;
   }, 1600);
 }
 

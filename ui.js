@@ -126,6 +126,14 @@ export const prefs = {
   set volume(value) {
     localStorage.setItem("together.volume", String(value));
   },
+  /** Show timings: each person's real gap from the room in ms, in place of the words. */
+  get timings() {
+    return localStorage.getItem("together.timings") === "1";
+  },
+  set timings(on) {
+    if (on) localStorage.setItem("together.timings", "1");
+    else localStorage.removeItem("together.timings");
+  },
 };
 
 // `?relay=https://relay.example.com` remembers a relay; `?relay=` forgets it.

@@ -29,7 +29,7 @@ class Recorder extends AudioWorkletProcessor {
 
   // Every sample's time is its block's start plus its place in the block, so the block must hold
   // one sample per frame of context time. Safari (26, 2026-09-19) breaks that two ways, and each
-  // moved the chirps by up to 230 ms: a quantum can come with no input, which is kept as silence
+  // moved the tune's marks by up to 230 ms: a quantum can come with no input, which is kept as silence
   // rather than skipped, and quanta can go missing altogether, which starts a new block at the
   // right time rather than running the samples on either side together.
   process(inputs) {

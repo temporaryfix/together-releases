@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark">
   <meta name="theme-color" content="#000000">
   <meta name="description" content="Watch together, wherever you are. Peer to peer, no accounts, nothing to install.">
-  <title>together</title>
+  <title>Together</title>
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="style.css">
   <link rel="modulepreload" href="backend.js">
@@ -41,7 +41,7 @@
   <!-- Landing -->
   <main id="landing" class="screen landing">
     <header class="masthead">
-      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</span>
+      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>Together</span>
     </header>
 
     <div class="middle">
@@ -51,22 +51,25 @@
         <div class="name-slot" data-name-slot></div>
         <label class="btn btn-primary btn-large">
           <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-          Choose a video
+          Start a room
         </label>
-        <p class="hint">or drop one anywhere</p>
+        <p class="hint">Choose a video, or drop one anywhere.</p>
         <p class="field-error" role="alert" data-error></p>
       </section>
 
       <form class="join-form" data-join-form novalidate>
         <label class="visually-hidden" for="invite-input">Invite link</label>
-        <input id="invite-input" class="input" type="text" placeholder="Have an invite? Paste it here" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
+        <input id="invite-input" class="input" type="text" placeholder="Have an invite link? Paste it here" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
         <button class="btn btn-secondary" type="submit">Join</button>
       </form>
       <p class="field-error" role="alert" data-join-error></p>
-      <p class="tune-row hint" aria-live="polite">
-        <span data-tune-status>Sound late on headphones or a TV speaker?</span>
-        <button class="quiet-link" type="button" data-tune>Tune it</button>
-      </p>
+      <div class="tune-offer">
+        <p class="tune-row hint" aria-live="polite">
+          <span data-tune-status>Sound early or late?</span>
+          <button class="quiet-link" type="button" data-tune>Tune it</button>
+        </p>
+        <p class="hint tune-how" data-tune-how>It plays a short rising tone and listens with your microphone, about 8 seconds.</p>
+      </div>
       <!-- While tuning runs: the same meter and phases as the extension's Tune page. -->
       <section class="tune-run" data-tune-run hidden>
         <p class="tune-step" role="status" data-tune-step></p>
@@ -88,23 +91,31 @@
   <!-- Opened from an invite link -->
   <main id="invited" class="screen invited" hidden>
     <header class="masthead">
-      <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>together</a>
+      <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>Together</a>
     </header>
 
     <div class="middle">
       <h1 class="headline">You’re invited to watch together.</h1>
-      <p class="hint relay-hint" data-relay-hint hidden></p>
 
       <section class="stage-card dropzone" data-dropzone aria-label="Join the room">
         <div class="name-slot" data-name-slot></div>
         <!-- Streaming needs a relay of your own in a browser, so usually it's your own copy. -->
-        <button class="btn btn-primary btn-large" type="button" data-stream hidden>Start watching</button>
+        <button class="btn btn-primary btn-large" type="button" data-stream hidden>Join</button>
         <label class="btn btn-large" data-own-copy>
           <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-          Open your copy of the video
+          Join with your copy
         </label>
         <p class="hint" data-own-copy-hint>Everyone plays their own copy. Drop yours anywhere.</p>
         <p class="field-error" role="alert" data-error></p>
+      </section>
+
+      <!-- A room on a site's own player (YouTube, Netflix…), started by the extension: it can only
+           be joined there, through the extension. -->
+      <section class="stage-card on-site" data-on-site aria-label="Join on the site" hidden>
+        <p class="on-site-where" data-on-site-where></p>
+        <p class="hint" data-on-site-how>It joins through the Together extension, in Chrome, Firefox or Safari.</p>
+        <a class="btn btn-primary btn-large" href="https://github.com/temporaryfix/together-releases#install" target="_blank" rel="noopener" data-on-site-install>Install the extension</a>
+        <a class="quiet-link" target="_blank" rel="noopener" data-on-site-page>Open the video</a>
       </section>
     </div>
   </main>
@@ -121,10 +132,12 @@
         </div>
         <ul class="people" aria-label="People in the room" data-people></ul>
         <div class="topbar-actions">
+          <!-- For power users: each person's real gap from the room in ms, and this output's tune. -->
+          <button class="btn btn-icon timings-toggle" type="button" aria-pressed="false" aria-label="Show timings" title="Show timings" data-timings>ms</button>
           <button class="btn btn-primary" type="button" data-invite popovertarget="invite-popover">
             <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><span>Invite</span>
           </button>
-          <button class="btn btn-icon" type="button" aria-label="Leave room" title="Leave room" data-leave>
+          <button class="btn btn-icon" type="button" aria-label="Leave" title="Leave" data-leave>
             <svg class="icon" aria-hidden="true"><use href="#i-leave"/></svg>
           </button>
         </div>
@@ -177,23 +190,17 @@
 
     <div class="popover" id="invite-popover" popover data-invite-popover>
       <h2 class="popover-title">Invite friends</h2>
-      <p class="popover-text">Anyone with the link can join.</p>
-      <p class="popover-text" data-invite-relay hidden></p>
+      <!-- The one invite every surface hands out: a link, and a QR code of the same link. -->
+      <div class="invite-qr" role="img" aria-label="QR code of the invite link" data-invite-qr></div>
       <div class="copy-row">
         <label class="visually-hidden" for="invite-link">Invite link</label>
         <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>
-        <button class="btn btn-secondary" type="button" data-copy="link">
-          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
+        <button class="btn btn-secondary" type="button" data-copy-link>
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy link</span>
         </button>
       </div>
-      <p class="popover-subtitle">Or in a terminal</p>
-      <div class="copy-row">
-        <label class="visually-hidden" for="invite-cli">Command</label>
-        <input id="invite-cli" class="input input-mono" type="text" readonly data-invite-cli>
-        <button class="btn btn-secondary" type="button" data-copy="cli">
-          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy</span>
-        </button>
-      </div>
+      <p class="popover-text">Anyone with the link can join.</p>
+      <p class="popover-text popover-faint">In a terminal: <code>together &lt;link&gt;</code></p>
     </div>
   </main>
 
@@ -209,6 +216,6 @@
     </div>
   </div>
 
-  <noscript><p class="noscript">together needs JavaScript and WebAssembly to run.</p></noscript>
+  <noscript><p class="noscript">Together needs JavaScript and WebAssembly to run.</p></noscript>
 </body>
 </html>

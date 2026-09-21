@@ -1,10 +1,10 @@
 // Passive tuning: how far the microphone hears the film behind the moment the page played it,
-// measured from the film's own soundtrack, with no chirp played at all.
+// measured from the film's own soundtrack, with nothing played at all.
 //
 // Two stamped streams go in: the reference (the film's sound, digital, read from the page) and the
 // microphone (the same sound after the speaker and the air). One number comes out, or a refusal.
 // The method is the one RESEARCH/PASSIVE_FILM_DELAY_2026-09-21.md measured on the laptop rig
-// against the shipped chirps, ported from extension/test/fft.cjs:
+// against 0.9.0's tune (a train of 40 ms marks), ported from extension/test/fft.cjs:
 //
 // - GCC-PHAT, not plain correlation. Plain correlation was 2 to 31 ms out on every window: it is
 //   decided by the bass, which a laptop speaker cannot reproduce and the room smears. PHAT divides
@@ -14,7 +14,7 @@
 //   behind the direct path, and in the 1-6 kHz band that reflection was the taller of the two.
 //   Unlike the prototype, "peak" means one of the tallest's own sign (see firstArrival).
 // - A confidence gate: the peak against the median |correlation| away from it. At 20x it kept 81 of
-//   90 windows, every one within 0.74 ms of the chirps, and threw away exactly the nine that would
+//   90 windows, every one within 0.74 ms of that tune, and threw away exactly the nine that would
 //   have been wrong (38 to 239 ms out, all under 20x). So below the gate this says nothing.
 //
 // Stream shape: `{ pcm: Float32Array, index: Array<[sampleIndex, tsMs, sampleRate]> }`. Chunk k

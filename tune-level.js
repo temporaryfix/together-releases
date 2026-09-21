@@ -20,8 +20,8 @@ export function meterLevel(peak) {
  *
  *   "silent" — every sample was zero. Not "quiet": digital zero. A microphone that is muted in the
  *              system, or a stream with no input behind it, gives exactly this, and no amount of
- *              chirping will change it. Worth stopping for.
- *   "hot"    — something reached full scale, so the chirps will land on top of clipping.
+ *              playing will change it. Worth stopping for.
+ *   "hot"    — something reached full scale, so the probe will land on top of clipping.
  *   "ok"     — anything else. A quiet room is not a fault and is not reported as one: the only
  *              thing that proves the microphone can hear this computer is the reference round,
  *              which happens next either way.

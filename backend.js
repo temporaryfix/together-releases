@@ -10,25 +10,25 @@
 //   host(options): Promise<RoomSession>    start a room
 //   join(invite, options): Promise<RoomSession>
 //   inspectInvite(text): InviteInfo        synchronous; throws an Error whose message is for the user
+//   inviteLink(invite, page?): string      the invite as the link everyone copies and scans; with
+//                                           `page`, a room on a site's own player (see InviteInfo)
+//   qrSvg(text): string                    `text` as a QR code: an SVG, black on white with its
+//                                           quiet zone; throws if it's too long for one
 //   formatTime(seconds): string            "0:05", "1:02:03"; synchronous
-//   tuneTrack(chirps?): Uint8Array          the tuning chirps as a WAV file (see tune.js)
-//   tunePlay(video, url, lead, chirps?): Promise<number[]>
-//                                           play them, and when the readings put each playing
-//   tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs)
-//                                           { delayMs, spreadMs, chirps } or { error, … }
-//   tuneProbeTrack(): Uint8Array            the tuning probe, one sweep, as a WAV file
+//   tuneProbeTrack(): Uint8Array            the tuning probe, one sweep, as a WAV file (see tune.js)
 //   tuneProbePlay(video, url, lead): Promise<number[]>
 //                                           play it, and when the readings put it playing
 //   tuneHear(samples, rate, anchorIndex, anchorMs, expectedMs)
 //                                           { offsetMs, prominence, splitMs } or { error, … }
-//   RemoteTune(send)                        a <video> in another document to tune, through the
-//                                           same bridge as SessionOptions.remote: .input(report),
-//                                           .play(lead, chirps?): Promise<number[]> (epoch ms)
 // }
 //
 // options: { video, name, stream?, relay?, title?, duration?, size?, file?, outputDelay? }
 //          (see SessionOptions; outputDelay: ms, what tuning measured)
-// InviteInfo: { ticket: string, relay: string | null }   relay: the room's own relay host, if the invite names one
+// InviteInfo: { ticket: string, relay: string | null, page: string | null, link: string }
+//   relay: the room's own relay host, if the invite names one
+//   page: the web page the room is watching, when it's on a site's own player (the extension's
+//         rooms); such a room can't be joined from this page, only through the extension
+//   link: the invite as a link
 //
 // RoomSession {
 //   ticket: string                          what others join with
@@ -62,21 +62,16 @@ function wasmBackend() {
     host: async (options) => wrap(await pkg.Session.host(options)),
     join: async (invite, options) => wrap(await pkg.Session.join(invite, options)),
     inspectInvite: (text) => {
-      const info = pkg.inspectInvite ? pkg.inspectInvite(text) : { ticket: pkg.parseInvite(text), relay: null };
-      return { ticket: info.ticket, relay: info.relay ?? null };
+      const info = pkg.inspectInvite(text);
+      return { ticket: info.ticket, relay: info.relay ?? null, page: info.page ?? null, link: info.link };
     },
+    inviteLink: (invite, page) => pkg.inviteLink(invite, page ?? undefined),
+    qrSvg: (text) => pkg.qrSvg(text),
     formatTime: (seconds) => pkg.formatTime(seconds),
-    tuneTrack: (chirps) => pkg.tuneTrack(chirps),
-    tunePlay: (video, url, lead, chirps) => pkg.tunePlay(video, url, lead, chirps),
-    tuneMeasure: (samples, rate, anchorIndex, anchorMs, expectedMs) =>
-      pkg.tuneMeasure(samples, rate, anchorIndex, anchorMs, expectedMs),
     tuneProbeTrack: () => pkg.tuneProbeTrack(),
     tuneProbePlay: (video, url, lead) => pkg.tuneProbePlay(video, url, lead),
     tuneHear: (samples, rate, anchorIndex, anchorMs, expectedMs) =>
       pkg.tuneHear(samples, rate, anchorIndex, anchorMs, expectedMs),
-    get RemoteTune() {
-      return pkg.RemoteTune;
-    },
   };
 }
 

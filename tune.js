@@ -1,16 +1,16 @@
 // Tuning: how far this browser's sound lags what the room reads of its video, measured with the
 // microphone, kept, and handed to every room as its output delay.
 //
-// Something plays the chirps and says when its readings put each one playing, in epoch ms
+// Something plays the probe and says when its readings put it playing, in epoch ms
 // (performance.timeOrigin + performance.now(), the same in every document): the backend, in a
 // <video> here (`tune`), or an extension through its bridge to a tab (`measure` with its own
 // `play`). This records the microphone meanwhile and stamps every block of samples with when it
-// reached the microphone, on that clock. The backend finds the chirps and measures.
+// reached the microphone, on that clock. The backend hears the probe and measures.
 //
 // Stamping: an AudioWorklet sees each block at a context time, which getOutputTimestamp() maps to
 // performance time. The capture path's own delay isn't reported truly (Chrome, 2026-09-19: 2.7 ms
-// said, 38 ms more measured), so it is measured: chirps of our own through Web Audio at context
-// times whose output the browser knows, heard through the same path, and their delay taken off.
+// said, 38 ms more measured), so it is measured: the probe of our own through Web Audio at a
+// context time whose output the browser knows, heard through the same path, and its delay taken off.
 //
 // The reference must leave by a *different* device from the one being listened on: a built-in
 // output, whose reported latency can be trusted (PLANS/TUNING.md:40). Out through the same device,
@@ -38,8 +38,8 @@ const KEY_BY_DEVICE = "together.tunes";
 // So this stays measured every time. The 8.4 s is load-bearing, and time has to come from
 // somewhere else.
 //
-// Each round is one probe, a 0.7 s rising sweep (together-core `tune::probe`), where it used to be
-// a train of 14 and 20 identical chirps: what measures an output's delay elsewhere is one sweep
+// Each round is one probe, a 0.7 s rising sweep (together-core `tune::probe`), where to 0.9.0 it
+// was a train of 14 and 20 identical 40 ms marks: what measures an output's delay elsewhere is one sweep
 // (RESEARCH/wiki/syntheses/acoustic-delay-measurement.md), and a sweep that is never repeated
 // can't be taken for its neighbour. It checks itself instead, its low and high halves heard apart.
 /** Where the probe starts in its track, seconds (`PROBE_LEAD` in crates/web/src/tune.rs). */
@@ -62,7 +62,7 @@ const read = (key, fallback) => {
   }
 }
 
-/** What was measured last, if anything: { delayMs, spreadMs, chirps, when, referenceOn, on }. */
+/** What was measured last, if anything: { delayMs, spreadMs, when, referenceOn, on, … }. */
 export function tuned() {
   return read(KEY, null);
 }
@@ -112,7 +112,7 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
   try {
     const result = await measure({
       ready: primed.catch(() => {
-        throw new Error("The browser didn't let the video play. Click Tune again.");
+        throw new Error("The browser didn't let the video play. Try again.");
       }),
       play: () => backend.tuneProbePlay(video, url, LEAD),
       onStep,
@@ -135,7 +135,7 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
 /**
  * Record while `play()` plays the tuning probe (a second in) and resolves to when its readings put
  * it playing (epoch ms, a one-element array), and measure. `ready` is awaited once the
- * microphone is granted. Resolves to { delayMs, spreadMs, chirps, when }; rejects with an Error
+ * microphone is granted. Resolves to { delayMs, spreadMs, when, … }; rejects with an Error
  * whose message is for the user. Keeps nothing: the caller decides where the result lives.
  *
  * `onStep(text)` is called once per phase. `onProgress({ phase, label, fraction, level, hot })` is
@@ -168,7 +168,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
   let beat;
   // The microphone again, as Chrome stamps it (stamped.js): a tune also learns how far this
   // microphone's stamps are from the truth, which is what lets the film tune every later output
-  // with no chirp at all (`micErrorMs` below, and extension/listen.js).
+  // with nothing played at all (`micErrorMs` below, and extension/listen.js).
   const stamped = canStamp() ? stamp(stream.getAudioTracks()[0].clone()) : null;
   try {
     await ctx.audioWorklet.addModule(new URL("tune-worklet.js", import.meta.url));
@@ -248,7 +248,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     // from context time `from` on: the two clocks only drift, and a single pair is coarse
     // (Firefox's jitter by milliseconds, 2026-09-19), which a line averages away. Only those from
     // `from`: Safari's pairs are off while its output settles (Safari 26.5, 2026-09-19: a line
-    // through them all ran 0.13% steep, 26 ms over the video's chirps).
+    // through them all ran 0.13% steep, 26 ms over the video's run).
     const measureNow = (expected, from) => {
       sample();
       const fit = pairs.filter(([c]) => c >= from);
@@ -277,12 +277,12 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
 
     // The reference: the same probe, through Web Audio, at a known context time, in rounds until
     // one is heard. Safari's microphone path takes seconds to settle after capture starts
-    // (Safari 26.5, 2026-09-19: the first ~5 s of chirps scattered over 330 ms, then six in a row
-    // within 0.2 ms), so an early round may not be; Chrome and Firefox hear the first.
+    // (Safari 26.5, 2026-09-19: the first ~5 s of 0.9.0's marks scattered over 330 ms, then six in
+    // a row within 0.2 ms), so an early round may not be; Chrome and Firefox hear the first.
     const track = await ctx.decodeAudioData(backend.tuneProbeTrack().buffer);
 
     // Before playing anything, see that the microphone is delivering samples at
-    // all. Digital zero throughout is a muted or absent input and no chirp will ever change it, so
+    // all. Digital zero throughout is a muted or absent input and nothing played will change it, so
     // say that now instead of at the end. A quiet room is not a fault: only exact silence stops us.
     enter("microphone", "Checking the microphone…", PREFLIGHT_MS);
     collect = [];
@@ -322,7 +322,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     const expected = await play();
     // When the readings put the probe playing, for anything that wants to hold another clock
     // against them (extension/test/tab-reading.cjs measures listen.js's constant this way).
-    globalThis.dispatchEvent?.(new CustomEvent("together:tune-chirps", { detail: Array.from(expected) }));
+    globalThis.dispatchEvent?.(new CustomEvent("together:tune-expected", { detail: Array.from(expected) }));
     await new Promise((r) => setTimeout(r, 100));
     clearInterval(sampler);
     clearInterval(beat);
@@ -353,7 +353,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
       when: new Date().toISOString(),
       referenceOn,
       on,
-      // How far the microphone's own stamps put the sound from where the chirps say it was: the
+      // How far the microphone's own stamps put the sound from where the probe says it was: the
       // film's tune adds it back (extension/listen.js). Null where the browser can't stamp audio.
       micErrorMs,
     };
