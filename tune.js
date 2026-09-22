@@ -18,6 +18,7 @@
 // would cancel itself out and the tune would report the sound on time. That is what this used to
 // do, and it is why tuning never worked on headphones.
 
+import { t } from "./copy.js";
 import { backend } from "./backend.js";
 import { chooseTune, currentInput, currentOutput, outputNow, referenceDevice } from "./tune-device.js";
 
@@ -112,7 +113,7 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
   try {
     const result = await measure({
       ready: primed.catch(() => {
-        throw new Error("The browser didn't let the video play. Try again.");
+        throw new Error(t("tune-play-denied"));
       }),
       play: () => backend.tuneProbePlay(video, url, LEAD),
       onStep,
@@ -147,14 +148,14 @@ export async function tune(video, onStep = () => {}, onProgress = () => {}) {
  */
 export async function measure({ play, ready = Promise.resolve(), onStep = () => {}, onProgress = () => {} }) {
   await backend.ready;
-  onStep("Asking for the microphone…");
+  onStep(t("tune-asking-microphone"));
   let stream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({
       audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false },
     });
   } catch {
-    throw new Error("Tuning needs the microphone. Allow it, then try again.");
+    throw new Error(t("tune-microphone-denied"));
   }
   try {
     await ready;
@@ -252,7 +253,7 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     const measureNow = (expected, from) => {
       sample();
       const fit = pairs.filter(([c]) => c >= from);
-      if (fit.length < 2 || blocks.length === 0) throw new Error("The microphone gave nothing. Try again.");
+      if (fit.length < 2 || blocks.length === 0) throw new Error(t("tune-no-samples"));
       const n = fit.length;
       const mc = fit.reduce((a, [c]) => a + c, 0) / n;
       const mp = fit.reduce((a, [, p]) => a + p, 0) / n;
@@ -284,20 +285,20 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     // Before playing anything, see that the microphone is delivering samples at
     // all. Digital zero throughout is a muted or absent input and nothing played will change it, so
     // say that now instead of at the end. A quiet room is not a fault: only exact silence stops us.
-    enter("microphone", "Checking the microphone…", PREFLIGHT_MS);
+    enter("microphone", t("tune-checking-microphone"), PREFLIGHT_MS);
     collect = [];
     await new Promise((r) => setTimeout(r, PREFLIGHT_MS));
     const heard = collect;
     collect = null;
     const verdict = micVerdict(heard);
     if (verdict === "silent") {
-      throw new Error("The microphone isn’t hearing anything at all. Check it isn’t muted, then try again.");
+      throw new Error(t("tune-silent-microphone"));
     }
     hot = verdict === "hot";
 
     let reference;
     for (let round = 0; round < REF_ROUNDS && !(reference && !reference.error); round++) {
-      enter("reference", round === 0 ? "Listening for this computer…" : "Listening again — that didn’t come through…", REF_MS);
+      enter("reference", round === 0 ? t("tune-listening-reference") : t("tune-listening-again"), REF_MS);
       const refWhen = ctx.currentTime + 0.3;
       const ref = ctx.createBufferSource();
       ref.buffer = track;
@@ -311,13 +312,13 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     }
     if (reference.error) {
       throw new Error(referenceOn
-        ? `The microphone didn't hear ${referenceOn}. Turn that up and try again.`
-        : "The microphone didn't hear this computer's own sound. Turn the sound up and try again.");
+        ? t("tune-reference-unheard", { output: referenceOn })
+        : t("tune-computer-unheard"));
     }
 
     // The reader stops 1.2 s past the probe's start (PROBE_AFTER in crates/web/src/tune.rs), which
     // is already later than the latest it is listened for.
-    enter("video", "Listening to the video…", (LEAD + PROBE + 1.2) * 1000);
+    enter("video", t("tune-listening-video"), (LEAD + PROBE + 1.2) * 1000);
     const played = ctx.currentTime;
     const expected = await play();
     // When the readings put the probe playing, for anything that wants to hold another clock
@@ -327,11 +328,11 @@ export async function measure({ play, ready = Promise.resolve(), onStep = () => 
     clearInterval(sampler);
     clearInterval(beat);
     phase = null;
-    if (!Number.isFinite(expected[0])) throw new Error("The video didn't play. Try again.");
+    if (!Number.isFinite(expected[0])) throw new Error(t("tune-video-stopped"));
     const video = measureNow(expected[0], played);
     if (video.error) console.debug("tune", { reference, video, expected });
-    if (video.error === "quiet") throw new Error("The microphone didn't hear the video. Turn the sound up and try again.");
-    if (video.error === "split") throw new Error("The room muddled the sound. Try again somewhere quieter.");
+    if (video.error === "quiet") throw new Error(t("tune-video-unheard"));
+    if (video.error === "split") throw new Error(t("tune-noisy-room"));
     const delayMs = video.offsetMs - reference.offsetMs;
     const micErrorMs = stamped ? microphoneError(stamped.all(), expected[0], delayMs) : null;
     // `captureMs` is what the reference round found: the microphone path's own delay, already

@@ -45,51 +45,14 @@ export function avatar(person, { you = false } = {}) {
   return h("span", { class: you ? "avatar is-you" : "avatar", "aria-hidden": "true" }, person.initials);
 }
 
-/** Transient messages, newest at the bottom, at most a few at a time. */
-export class Toasts {
-  constructor(list, { max = 3, duration = 3600 } = {}) {
-    this.list = list;
-    this.max = max;
-    this.duration = duration;
-  }
-
-  /** A toast with the same `key` as a visible one replaces it (e.g. a burst of seeks). */
-  show(message, { person, icon: iconName, key } = {}) {
-    const lead = person ? avatar(person) : iconName ? icon(iconName) : undefined;
-    const item = h("li", { class: lead ? "toast" : "toast is-plain" }, lead, h("span", {}, message));
-    const previous = key && [...this.list.children].find((li) => li.dataset.key === key && !li.classList.contains("is-leaving"));
-    if (key) item.dataset.key = key;
-    if (previous) {
-      clearTimeout(previous.timer);
-      previous.replaceWith(item);
-      item.style.animation = "none";
-    } else {
-      this.list.append(item);
-    }
-    while (this.list.children.length > this.max) this.list.firstElementChild.remove();
-    item.timer = setTimeout(() => dismiss(item), this.duration);
-  }
-
-  clear() {
-    this.list.replaceChildren();
-  }
-}
-
-function dismiss(item) {
-  if (!item.isConnected) return;
-  item.classList.add("is-leaving");
-  item.addEventListener("animationend", () => item.remove(), { once: true });
-  // Reduced motion: animations may not run at all.
-  setTimeout(() => item.remove(), 400);
-}
-
 /** Copy text, falling back to selecting an input when the Clipboard API is unavailable. */
 export async function copyText(text, fallbackInput) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
   } catch {
-    if (!fallbackInput) return false;
+    // A room or user edit may have replaced the field while the permission request was pending.
+    if (!fallbackInput || fallbackInput.value !== text) return false;
     fallbackInput.focus();
     fallbackInput.select();
     return document.execCommand?.("copy") ?? false;

@@ -41,48 +41,49 @@
   <!-- Landing -->
   <main id="landing" class="screen landing">
     <header class="masthead">
-      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>Together</span>
+      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg><span data-l10n-id="ui-together"></span></span>
     </header>
 
     <div class="middle">
-      <h1 class="headline">Watch together, wherever you are.</h1>
+      <h1 class="headline"><span data-l10n-id="ui-watch-together-wherever-you-are"></span></h1>
 
-      <section class="stage-card dropzone" data-dropzone aria-label="Start a room">
+      <section class="stage-card dropzone" data-dropzone data-l10n-aria-label="ui-start-a-room">
         <div class="name-slot" data-name-slot></div>
         <label class="btn btn-primary btn-large">
           <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-          Start a room
+          <span data-l10n-id="ui-start-a-room"></span>
         </label>
-        <p class="hint">Choose a video, or drop one anywhere.</p>
+        <p class="hint"><span data-l10n-id="ui-choose-a-video-or-drop-one-anywhere"></span></p>
         <p class="field-error" role="alert" data-error></p>
       </section>
 
       <form class="join-form" data-join-form novalidate>
-        <label class="visually-hidden" for="invite-input">Invite link</label>
-        <input id="invite-input" class="input" type="text" placeholder="Have an invite link? Paste it here" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
-        <button class="btn btn-secondary" type="submit">Join</button>
+        <label class="visually-hidden" for="invite-input"><span data-l10n-id="ui-invite-link"></span></label>
+        <input id="invite-input" class="input" type="text" data-l10n-placeholder="ui-have-an-invite-link-paste-it-here" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
+        <button class="btn btn-secondary" type="submit"><span data-l10n-id="ui-join"></span></button>
       </form>
       <p class="field-error" role="alert" data-join-error></p>
       <div class="tune-offer">
+        <together-tune>
         <p class="tune-row hint" aria-live="polite">
-          <span data-tune-status>Sound early or late?</span>
-          <button class="quiet-link" type="button" data-tune>Tune it</button>
+          <span data-tune-status><span data-l10n-id="ui-sound-early-or-late"></span></span>
+          <button class="quiet-link" type="button" data-tune><span data-l10n-id="ui-tune-it"></span></button>
         </p>
-        <p class="hint tune-how" data-tune-how>It plays a short rising tone and listens with your microphone, about 8 seconds.</p>
+        <p class="hint tune-how" data-tune-how><span data-l10n-id="tune-instructions"></span></p>
+        </together-tune>
       </div>
       <!-- While tuning runs: the same meter and phases as the extension's Tune page. -->
       <section class="tune-run" data-tune-run hidden>
         <p class="tune-step" role="status" data-tune-step></p>
         <div class="tune-meter" data-tune-meter>
-          <span class="visually-hidden" data-tune-meter-text>Microphone level</span>
+          <span class="visually-hidden" data-tune-meter-text><span data-l10n-id="ui-microphone-level"></span></span>
         </div>
         <ol class="tune-phases">
-          <li class="tune-phase" data-tune-phase="microphone"><span class="tune-phase-bar"></span>Microphone</li>
-          <li class="tune-phase" data-tune-phase="reference"><span class="tune-phase-bar"></span>This computer</li>
-          <li class="tune-phase" data-tune-phase="video"><span class="tune-phase-bar"></span>The video</li>
+          <li class="tune-phase" data-tune-phase="microphone"><span class="tune-phase-bar"></span><span data-l10n-id="ui-microphone"></span></li>
+          <li class="tune-phase" data-tune-phase="reference"><span class="tune-phase-bar"></span><span data-l10n-id="ui-this-computer"></span></li>
+          <li class="tune-phase" data-tune-phase="video"><span class="tune-phase-bar"></span><span data-l10n-id="ui-the-video"></span></li>
         </ol>
-        <p class="hint tune-hot" data-tune-hot hidden>The microphone is up very loud. If this comes
-          out wrong, turn its input volume down and tune again.</p>
+        <p class="hint tune-hot" data-tune-hot hidden><span data-l10n-id="tune-microphone-loud"></span></p>
       </section>
       <video class="visually-hidden" playsinline data-tune-video></video>
     </div>
@@ -91,31 +92,31 @@
   <!-- Opened from an invite link -->
   <main id="invited" class="screen invited" hidden>
     <header class="masthead">
-      <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg>Together</a>
+      <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg><span data-l10n-id="ui-together"></span></a>
     </header>
 
     <div class="middle">
-      <h1 class="headline">You’re invited to watch together.</h1>
+      <h1 class="headline"><span data-l10n-id="ui-you-re-invited-to-watch-together"></span></h1>
 
-      <section class="stage-card dropzone" data-dropzone aria-label="Join the room">
+      <section class="stage-card dropzone" data-dropzone data-l10n-aria-label="ui-join-the-room">
         <div class="name-slot" data-name-slot></div>
         <!-- Streaming needs a relay of your own in a browser, so usually it's your own copy. -->
-        <button class="btn btn-primary btn-large" type="button" data-stream hidden>Join</button>
+        <button class="btn btn-primary btn-large" type="button" data-stream hidden><span data-l10n-id="ui-join"></span></button>
         <label class="btn btn-large" data-own-copy>
           <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
-          Join with your copy
+          <span data-l10n-id="ui-join-with-your-copy"></span>
         </label>
-        <p class="hint" data-own-copy-hint>Everyone plays their own copy. Drop yours anywhere.</p>
+        <p class="hint" data-own-copy-hint><span data-l10n-id="invite-own-copy"></span></p>
         <p class="field-error" role="alert" data-error></p>
       </section>
 
       <!-- A room on a site's own player (YouTube, Netflix…), started by the extension: it can only
            be joined there, through the extension. -->
-      <section class="stage-card on-site" data-on-site aria-label="Join on the site" hidden>
+      <section class="stage-card on-site" data-on-site data-l10n-aria-label="ui-join-on-the-site" hidden>
         <p class="on-site-where" data-on-site-where></p>
-        <p class="hint" data-on-site-how>It joins through the Together extension, in Chrome, Firefox or Safari.</p>
-        <a class="btn btn-primary btn-large" href="https://github.com/temporaryfix/together-releases#install" target="_blank" rel="noopener" data-on-site-install>Install the extension</a>
-        <a class="quiet-link" target="_blank" rel="noopener" data-on-site-page>Open the video</a>
+        <p class="hint" data-on-site-how><span data-l10n-id="invite-extension-instructions"></span></p>
+        <a class="btn btn-primary btn-large" href="https://github.com/temporaryfix/together-releases#install" target="_blank" rel="noopener" data-on-site-install><span data-l10n-id="ui-install-the-extension"></span></a>
+        <a class="quiet-link" target="_blank" rel="noopener" data-on-site-page><span data-l10n-id="ui-open-the-video"></span></a>
       </section>
     </div>
   </main>
@@ -130,14 +131,14 @@
           <svg class="room-mark" aria-hidden="true"><use href="#mark"/></svg>
           <span class="room-name" data-title></span>
         </div>
-        <ul class="people" aria-label="People in the room" data-people></ul>
+        <together-people><ul class="people" data-l10n-aria-label="ui-people-in-the-room" data-people></ul></together-people>
         <div class="topbar-actions">
           <!-- For power users: each person's real gap from the room in ms, and this output's tune. -->
-          <button class="btn btn-icon timings-toggle" type="button" aria-pressed="false" aria-label="Show timings" title="Show timings" data-timings>ms</button>
+          <button class="btn btn-icon timings-toggle" type="button" aria-pressed="false" data-l10n-aria-label="ui-show-timings" data-l10n-title="ui-show-timings" data-timings><span data-l10n-id="ui-ms"></span></button>
           <button class="btn btn-primary" type="button" data-invite popovertarget="invite-popover">
-            <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><span>Invite</span>
+            <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><span data-l10n-id="ui-invite"></span>
           </button>
-          <button class="btn btn-icon" type="button" aria-label="Leave" title="Leave" data-leave>
+          <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-leave" data-l10n-title="ui-leave" data-leave>
             <svg class="icon" aria-hidden="true"><use href="#i-leave"/></svg>
           </button>
         </div>
@@ -149,12 +150,12 @@
           <p class="notice-title" data-mismatch-title></p>
           <p class="notice-text" data-mismatch-text></p>
         </div>
-        <button class="btn btn-icon btn-small" type="button" aria-label="Dismiss" data-mismatch-close>
+        <button class="btn btn-icon btn-small" type="button" data-l10n-aria-label="ui-dismiss" data-mismatch-close>
           <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
         </button>
       </div>
 
-      <ol class="toasts" aria-live="polite" data-toasts></ol>
+      <together-toasts><ol class="toasts" aria-live="polite" data-toasts></ol></together-toasts>
 
       <div class="overlay" data-overlay hidden></div>
 
@@ -162,26 +163,24 @@
       <div class="ready-prompt" data-ready-control hidden>
         <p class="ready-title" data-ready-title></p>
         <p class="ready-note" data-ready-note></p>
-        <button class="btn btn-primary btn-large" type="button" aria-pressed="false" data-ready>
-          <svg class="icon" aria-hidden="true"><use href="#i-check"/></svg><span data-ready-label>I’m ready</span>
-        </button>
+        <together-ready large keyboard></together-ready>
       </div>
 
       <div class="controls chrome" data-controls>
-        <input class="scrubber" type="range" min="0" max="0" step="0.01" value="0" aria-label="Seek" data-scrubber>
+        <input class="scrubber" type="range" min="0" max="0" step="0.01" value="0" data-l10n-aria-label="ui-seek" data-scrubber>
         <div class="controls-row">
-          <button class="btn btn-icon btn-play" type="button" aria-label="Play" title="Play (Space)" data-play>
+          <button class="btn btn-icon btn-play" type="button" data-l10n-aria-label="ui-play" data-l10n-title="ui-play-space" data-play>
             <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>
           </button>
           <p class="time"><span data-current>0:00</span><span class="time-sep"> / </span><span data-duration>0:00</span></p>
           <span class="spacer"></span>
           <div class="volume">
-            <button class="btn btn-icon" type="button" aria-label="Mute" title="Mute (M)" data-mute>
+            <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-mute" data-l10n-title="ui-mute-m" data-mute>
               <svg class="icon" aria-hidden="true"><use href="#i-volume"/></svg>
             </button>
-            <input class="volume-slider" type="range" min="0" max="1" step="0.05" value="1" aria-label="Volume" data-volume>
+            <input class="volume-slider" type="range" min="0" max="1" step="0.05" value="1" data-l10n-aria-label="ui-volume" data-volume>
           </div>
-          <button class="btn btn-icon" type="button" aria-label="Full screen" title="Full screen (F)" data-fullscreen>
+          <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-full-screen" data-l10n-title="ui-full-screen-f" data-fullscreen>
             <svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg>
           </button>
         </div>
@@ -189,18 +188,20 @@
     </div>
 
     <div class="popover" id="invite-popover" popover data-invite-popover>
-      <h2 class="popover-title">Invite friends</h2>
+      <h2 class="popover-title"><span data-l10n-id="ui-invite-friends"></span></h2>
+      <together-invite qr-pixels="208">
       <!-- The one invite every surface hands out: a link, and a QR code of the same link. -->
-      <div class="invite-qr" role="img" aria-label="QR code of the invite link" data-invite-qr></div>
+      <div class="invite-qr" role="img" data-l10n-aria-label="ui-qr-code-of-the-invite-link" data-invite-qr></div>
       <div class="copy-row">
-        <label class="visually-hidden" for="invite-link">Invite link</label>
+        <label class="visually-hidden" for="invite-link"><span data-l10n-id="ui-invite-link"></span></label>
         <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>
         <button class="btn btn-secondary" type="button" data-copy-link>
-          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span>Copy link</span>
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-l10n-id="ui-copy-link"></span>
         </button>
       </div>
-      <p class="popover-text">Anyone with the link can join.</p>
-      <p class="popover-text popover-faint">In a terminal: <code>together &lt;link&gt;</code></p>
+      </together-invite>
+      <p class="popover-text"><span data-l10n-id="ui-anyone-with-the-link-can-join"></span></p>
+      <p class="popover-text popover-faint"><span data-l10n-id="ui-in-a-terminal"></span> <code>together &lt;link&gt;</code></p>
     </div>
   </main>
 

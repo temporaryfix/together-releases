@@ -20,6 +20,7 @@ export class MediaLoadError extends Error {}
 /** A video file the user picked or dropped. */
 export function fileSource(file) {
   let url;
+  const controller = new AbortController();
   return {
     kind: "file",
     title: file.name,
@@ -28,13 +29,14 @@ export function fileSource(file) {
     async attach(video) {
       url = URL.createObjectURL(file);
       try {
-        await load(video, url);
+        await load(video, url, controller.signal);
       } catch (error) {
         this.release();
         throw error;
       }
     },
     release() {
+      controller.abort();
       if (url) URL.revokeObjectURL(url);
       url = undefined;
     },
@@ -48,31 +50,42 @@ export function fileSource(file) {
  * expects, so seeking works long before the whole film is here.
  */
 export function streamSource(session, { hash, title, size }) {
+  const owner = {};
+  const controller = new AbortController();
   return {
     kind: "stream",
     title,
     size,
     async attach(video) {
       try {
-        await serve(session);
-        await load(video, streamUrl(hash, title));
+        controller.signal.throwIfAborted();
+        await serve(session, owner);
+        controller.signal.throwIfAborted();
+        await load(video, streamUrl(hash, title), controller.signal);
       } catch (error) {
         this.release();
         throw error instanceof MediaLoadError ? error : new MediaLoadError(error.message);
       }
     },
     release() {
-      stopServing();
+      controller.abort();
+      stopServing(owner);
     },
   };
 }
 
 /** Point `video` at `src` and wait until its duration is known. */
-function load(video, src) {
+function load(video, src, signal) {
   return new Promise((resolve, reject) => {
+    signal.throwIfAborted();
     const done = () => {
       video.removeEventListener("loadedmetadata", ok);
       video.removeEventListener("error", fail);
+      signal.removeEventListener("abort", abort);
+    };
+    const abort = () => {
+      done();
+      reject(signal.reason);
     };
     const ok = () => {
       done();
@@ -82,6 +95,7 @@ function load(video, src) {
       done();
       reject(new MediaLoadError(describeError(video.error)));
     };
+    signal.addEventListener("abort", abort, { once: true });
     video.addEventListener("loadedmetadata", ok);
     video.addEventListener("error", fail);
     video.src = src;

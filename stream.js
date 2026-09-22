@@ -4,6 +4,8 @@
 // which holds the iroh connection and the bytes fetched so far. Bodies stay here as wasm objects
 // and are read a piece at a time, because a stream can't be sent across a message port.
 
+import { StreamBodies } from "./stream-bodies.js";
+
 /** Whether a film can be streamed here at all. Service Workers need a secure context. */
 export function canStream() {
   return "serviceWorker" in navigator && window.isSecureContext;
@@ -18,12 +20,16 @@ export function streamUrl(hash, title) {
 const CONTROL_TIMEOUT_MS = 8000;
 
 let session;
+let owner;
+let generation = 0;
 let ready;
-let nextBody = 0;
-const bodies = new Map();
+const bodies = new StreamBodies();
 
 /** Answer the worker's requests from `newSession` until `stopServing`. */
-export async function serve(newSession) {
+export async function serve(newSession, newOwner) {
+  bodies.closeAll();
+  generation++;
+  owner = newOwner;
   session = newSession;
   ready ??= start();
   try {
@@ -35,88 +41,67 @@ export async function serve(newSession) {
   }
 }
 
-export function stopServing() {
+export function stopServing(oldOwner) {
+  if (owner !== oldOwner) return;
+  owner = undefined;
   session = undefined;
-  for (const id of [...bodies.keys()]) close(id);
+  bodies.closeAll();
 }
 
 async function start() {
   if (!canStream()) throw new Error("This browser can’t stream without a secure connection.");
   navigator.serviceWorker.removeEventListener("message", answer);
   navigator.serviceWorker.addEventListener("message", answer);
-  await navigator.serviceWorker.register(new URL("./sw.js", import.meta.url));
-  await navigator.serviceWorker.ready;
-  // A worker only sees requests from pages it controls, and it doesn't control this one until it
-  // claims it, which happens once it has activated.
-  if (!navigator.serviceWorker.controller) {
+  let timer;
+  let controlled;
+  const control = new Promise((resolve) => { controlled = resolve; });
+  navigator.serviceWorker.addEventListener("controllerchange", controlled);
+  try {
     await Promise.race([
-      new Promise((resolve) => navigator.serviceWorker.addEventListener("controllerchange", resolve, { once: true })),
-      new Promise((resolve) => setTimeout(resolve, CONTROL_TIMEOUT_MS)),
+      (async () => {
+        await navigator.serviceWorker.register(new URL("./sw.js", import.meta.url));
+        await navigator.serviceWorker.ready;
+        if (!navigator.serviceWorker.controller) await control;
+        if (!navigator.serviceWorker.controller) throw new Error("The streaming helper lost control of this page");
+      })(),
+      new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error("The helper that plays the room’s copy didn’t start. Reload and try again.")), CONTROL_TIMEOUT_MS);
+      }),
     ]);
-  }
-  if (!navigator.serviceWorker.controller) {
-    throw new Error("The helper that plays the room’s copy didn’t start. Reload and try again.");
+  } finally {
+    clearTimeout(timer);
+    navigator.serviceWorker.removeEventListener("controllerchange", controlled);
   }
 }
 
 function answer(event) {
   const port = event.ports[0];
-  const reply = (value, transfer = []) => port?.postMessage(value, transfer);
+  const reply = (value, transfer = []) => {
+    if (!port) return;
+    try { port.postMessage(value, transfer); } finally { port.close(); }
+  };
   const message = event.data;
   if (!session) return reply({ error: "nothing is streaming" });
   try {
     switch (message.kind) {
       case "head":
-        return reply(session.streamHead(message.hash, message.range ?? undefined));
+        return reply({ ...session.streamHead(message.hash, message.range ?? undefined), generation });
       case "open": {
-        const id = ++nextBody;
-        bodies.set(id, { body: session.streamBody(message.start, message.end), reading: false, closed: false });
+        if (message.generation !== generation) throw new Error("That film is no longer open");
+        const id = bodies.open(session.streamBody(message.start, message.end), message.id);
         return reply({ id });
       }
       case "read":
-        return read(message.id, reply);
+        return bodies.read(message.id).then(
+          (bytes) => reply(bytes ? { bytes: bytes.buffer } : {}, bytes ? [bytes.buffer] : []),
+          (error) => reply({ error: String(error?.message ?? error) }),
+        );
       case "close":
-        return close(message.id);
+        return bodies.close(message.id);
+      default:
+        return reply({ error: "unknown stream request" });
     }
   } catch (error) {
     reply({ error: String(error?.message ?? error) });
   }
-}
-
-function read(id, reply) {
-  const entry = bodies.get(id);
-  if (!entry) return reply({ error: "that body has been closed" });
-  entry.reading = true;
-  entry.body.next().then(
-    (bytes) => {
-      // The wasm side hands over a fresh array, so the buffer can be given away rather than copied.
-      done(id);
-      reply(bytes ? { bytes: bytes.buffer } : {}, bytes ? [bytes.buffer] : []);
-    },
-    (error) => {
-      done(id);
-      reply({ error: String(error?.message ?? error) });
-    },
-  );
-}
-
-function done(id) {
-  const entry = bodies.get(id);
-  if (!entry) return;
-  entry.reading = false;
-  if (entry.closed) close(id);
-}
-
-/** Stop a body now, and free it once whatever is reading it has let go: wasm objects can't be
- * freed mid-call. */
-function close(id) {
-  const entry = bodies.get(id);
-  if (!entry) return;
-  entry.body.cancel();
-  if (entry.reading) {
-    entry.closed = true;
-    return;
-  }
-  bodies.delete(id);
-  entry.body.free();
 }

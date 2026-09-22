@@ -44,19 +44,38 @@ async function serve(event, url) {
 
 /** Reads the body a piece at a time, so nothing is downloaded further ahead than it is played. */
 function body(page, head) {
-  let id;
+  // Know the identity before asking the page to allocate. Even a timed-out open can be closed.
+  const id = crypto.randomUUID();
+  let cancelled = false;
+  const close = () => {
+    page.postMessage({ kind: "close", id });
+  };
   return new ReadableStream({
     async start() {
-      ({ id } = await ask(page, { kind: "open", start: head.start, end: head.end }));
+      try {
+        await ask(page, { kind: "open", id, start: head.start, end: head.end, generation: head.generation });
+        // cancel() can run while open is still in flight. The late body still belongs to us.
+        if (cancelled) close();
+      } catch (error) {
+        close();
+        throw error;
+      }
     },
     async pull(controller) {
-      const { bytes } = await ask(page, { kind: "read", id });
-      if (bytes) controller.enqueue(new Uint8Array(bytes));
-      else controller.close();
+      try {
+        const { bytes } = await ask(page, { kind: "read", id });
+        if (cancelled) return;
+        if (bytes) controller.enqueue(new Uint8Array(bytes));
+        else controller.close();
+      } catch (error) {
+        close();
+        throw error;
+      }
     },
     // The player seeked away or has buffered enough: stop fetching for this response.
     cancel() {
-      page.postMessage({ kind: "close", id });
+      cancelled = true;
+      close();
     },
   });
 }
@@ -71,11 +90,19 @@ async function client(event) {
 function ask(page, message) {
   return new Promise((resolve, reject) => {
     const channel = new MessageChannel();
-    channel.port1.onmessage = (event) => {
-      const answer = event.data;
-      if (answer.error) reject(new Error(answer.error));
+    const finish = (error, answer) => {
+      clearTimeout(timer);
+      channel.port1.close();
+      channel.port2.close();
+      if (error) reject(error);
       else resolve(answer);
     };
-    page.postMessage(message, [channel.port2]);
+    const timer = setTimeout(() => finish(new Error("The room stopped responding")), 30_000);
+    channel.port1.onmessage = (event) => {
+      const answer = event.data;
+      finish(answer.error ? new Error(answer.error) : undefined, answer);
+    };
+    channel.port1.onmessageerror = () => finish(new Error("The room sent an unreadable response"));
+    try { page.postMessage(message, [channel.port2]); } catch (error) { finish(error); }
   });
 }
