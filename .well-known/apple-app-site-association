@@ -1,0 +1,10 @@
+{
+  "applinks": {
+    "details": [
+      {
+        "appIDs": ["CZLT455878.london.tmp.together"],
+        "components": [{ "/": "/", "#": "watch*" }]
+      }
+    ]
+  }
+}
