@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="color-scheme" content="dark">
+  <meta name="theme-color" content="#000000">
+  <meta name="description" content="Together, wherever. Peer to peer, no accounts, nothing to install.">
+  <title>Together</title>
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="style.css">
+  <link rel="modulepreload" href="pkg/together_web.js">
+  <script type="module" src="app.js"></script>
+</head>
+<body>
+  <!-- Icons, drawn once and referenced with <use>. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13a1 1 0 0 0 1.5.86l10.2-6.5a1 1 0 0 0 0-1.72L9.5 4.64A1 1 0 0 0 8 5.5z" fill="currentColor"/></symbol>
+      <symbol id="i-pause" viewBox="0 0 24 24"><rect x="6" y="5" width="4" height="14" rx="1.2" fill="currentColor"/><rect x="14" y="5" width="4" height="14" rx="1.2" fill="currentColor"/></symbol>
+      <symbol id="i-volume" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="M15.5 8.5a5 5 0 0 1 0 7M18 6a8.5 8.5 0 0 1 0 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-muted" viewBox="0 0 24 24"><path d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" fill="currentColor"/><path d="m16 9.5 5 5m0-5-5 5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-expand" viewBox="0 0 24 24"><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-shrink" viewBox="0 0 24 24"><path d="M9 4v4a1 1 0 0 1-1 1H4M20 9h-4a1 1 0 0 1-1-1V4M15 20v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4.5 4.5 0 0 0 6.4 0l3-3a4.5 4.5 0 0 0-6.4-6.4l-1 1M14 10a4.5 4.5 0 0 0-6.4 0l-3 3a4.5 4.5 0 0 0 6.4 6.4l1-1" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-leave" viewBox="0 0 24 24"><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 8l-4 4 4 4M6 12h10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="12" height="12" rx="2.5" fill="none" stroke="currentColor" stroke-width="2"/><path d="M16 5.5A2 2 0 0 0 14 4H6a2 2 0 0 0-2 2v8a2 2 0 0 0 1.5 2" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-check" viewBox="0 0 24 24"><path d="m5 12.5 4.5 4.5L19 7.5" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-film" viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/></symbol>
+      <symbol id="i-alert" viewBox="0 0 24 24"><path d="M12 4 2.8 19.5h18.4z" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linejoin="round"/><path d="M12 10v4.2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="17" r="1.1" fill="currentColor"/></symbol>
+      <symbol id="i-close" viewBox="0 0 24 24"><path d="m6.5 6.5 11 11m0-11-11 11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></symbol>
+      <symbol id="i-message" viewBox="0 0 24 24"><path d="M5 4h14a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H9l-6 4V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+      <!-- You, solid, and a friend in outline. -->
+      <symbol id="i-mic" viewBox="0 0 24 24"><path d="M9 6a3 3 0 0 1 6 0v6a3 3 0 0 1-6 0V6ZM6 11v1a6 6 0 0 0 12 0v-1M12 18v3M9 21h6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+      <symbol id="i-qr" viewBox="0 0 24 24"><path d="M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M14 14h2.5v2.5H14zM17.5 17.5H20V20h-2.5zM14 18.5h2v1.5h-2zM18 14h2v2h-2z" fill="currentColor"/></symbol>
+      <symbol id="i-settings" viewBox="0 0 24 24"><path d="M9.5 2h5l.6 2.6 2 .9 2.3-.8 2.5 4.3-1.8 1.9v2.2l1.8 1.9-2.5 4.3-2.3-.8-2 .9-.6 2.6h-5l-.6-2.6-2-.9-2.3.8L2.1 15l1.8-1.9v-2.2L2.1 9l2.5-4.3 2.3.8 2-.9L9.5 2Z" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.7"/></symbol>
+      <symbol id="mark" viewBox="0 0 44 28"><circle xmlns="http://www.w3.org/2000/svg" cx="15" cy="14" r="10" fill="none" stroke="currentColor" stroke-width="2.5" /><circle xmlns="http://www.w3.org/2000/svg" cx="29" cy="14" r="10" fill="none" stroke="currentColor" stroke-width="2.5" /><path xmlns="http://www.w3.org/2000/svg" d="M22.0 6.858572 A10 10 0 0 1 22.0 21.141428 A10 10 0 0 1 22.0 6.858572Z" fill="currentColor" /></symbol>
+    </defs>
+  </svg>
+
+  <main id="unsupported-browser" class="screen landing" tabindex="-1" aria-labelledby="unsupported-browser-title" hidden>
+    <header class="masthead">
+      <span class="wordmark"><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg><span data-l10n-id="ui-together"></span></span>
+    </header>
+    <div class="middle">
+      <h1 id="unsupported-browser-title" class="headline" data-browser-support-title></h1>
+      <p class="hint" data-browser-support-message></p>
+      <div class="join-form">
+        <input class="input" type="text" readonly data-browser-support-link data-l10n-aria-label="browser-open-link">
+        <button class="btn btn-primary" type="button" data-browser-support-copy aria-live="polite" data-l10n-id="ui-copy-link"></button>
+      </div>
+    </div>
+  </main>
+
+  <!-- Home: the existing entry owners mounted in the shared dock. -->
+  <main id="landing" class="screen landing home" tabindex="-1" aria-labelledby="landing-title">
+    <div class="home-scroll">
+      <header class="home-header"><h1 id="landing-title" data-l10n-id="ui-together"></h1></header>
+      <div class="middle home-content">
+        <section class="stage-card entry-progress" role="status" data-entry-progress hidden>
+          <p data-entry-text></p>
+          <button class="quiet-link" type="button" data-entry-cancel data-l10n-id="entry-cancel"></button>
+        </section>
+        <section class="stage-card dropzone home-entry" data-dropzone data-entry-content data-l10n-aria-label="ui-start-a-room">
+          <div class="name-slot" data-name-slot></div>
+          <p class="hint" data-l10n-id="ui-choose-a-video-or-drop-one-anywhere"></p>
+          <p class="field-error" role="alert" data-error></p>
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" tabindex="-1" data-file>
+        </section>
+      </div>
+    </div>
+    <div class="home-dock-wrap" data-home-dock-wrap data-entry-content>
+      <together-dock>
+        <div class="home-link-primary" data-home-primary>
+          <form class="join-form" data-join-form novalidate>
+            <label class="visually-hidden" for="invite-input" data-l10n-id="ui-paste-an-invite-or-video-link"></label>
+            <input id="invite-input" class="input" type="text" data-l10n-placeholder="ui-paste-an-invite-or-video-link" autocomplete="off" autocapitalize="off" spellcheck="false" data-invite-input>
+            <button class="btn btn-primary" type="submit" data-l10n-id="ui-join"></button>
+          </form>
+          <p class="field-error" role="alert" data-join-error></p>
+        </div>
+        <together-dock-row data-home-actions></together-dock-row>
+      </together-dock>
+    </div>
+    <dialog class="home-settings" data-home-settings aria-labelledby="home-settings-title">
+      <header><h2 id="home-settings-title" data-l10n-id="settings-title"></h2>
+        <button class="btn btn-icon" type="button" data-home-settings-close data-l10n-aria-label="screen-close"><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button>
+      </header>
+      <section class="home-settings-person">
+        <h3 data-l10n-id="settings-name"></h3>
+        <span data-home-settings-name></span>
+        <button class="quiet-link" type="button" data-home-settings-change data-l10n-id="ui-change"></button>
+      </section>
+      <details class="home-settings-developer" data-developer>
+        <summary data-l10n-id="settings-developer"></summary>
+        <label><input type="checkbox" data-timings> <span data-l10n-id="ui-show-timings"></span></label>
+      </details>
+    </dialog>
+  </main>
+
+  <!-- Opened from an invite link -->
+  <main id="invited" class="screen invited" tabindex="-1" aria-labelledby="invited-title" hidden>
+    <header class="masthead">
+      <a class="wordmark" href="./" data-home><svg class="wordmark-mark" aria-hidden="true"><use href="#mark"/></svg><span data-l10n-id="ui-together"></span></a>
+    </header>
+
+    <div class="middle">
+      <h1 id="invited-title" class="headline"><span data-l10n-id="ui-you-re-invited-to-watch-together"></span></h1>
+
+      <a class="btn btn-primary btn-large" data-native-invite data-entry-content hidden data-l10n-id="ios-open"></a>
+
+      <section class="stage-card entry-progress" role="status" data-entry-progress hidden>
+        <p data-entry-text></p>
+        <button class="quiet-link" type="button" data-entry-cancel data-l10n-id="entry-cancel"></button>
+      </section>
+      <section class="stage-card dropzone" data-dropzone data-entry-content data-l10n-aria-label="ui-join-the-room">
+        <div class="name-slot" data-name-slot></div>
+        <!-- Streaming needs a relay of your own in a browser, so usually it's your own copy. -->
+        <button class="btn btn-primary btn-large" type="button" data-stream hidden><span data-l10n-id="ui-join"></span></button>
+        <label class="btn btn-large" data-own-copy>
+          <input class="visually-hidden" type="file" accept="video/*,.mkv,.mov" data-file>
+          <span data-l10n-id="ui-use-my-copy"></span>
+        </label>
+        <p class="hint" data-own-copy-hint><span data-l10n-id="invite-own-copy"></span></p>
+        <p class="field-error" role="alert" data-error></p>
+        <a class="btn btn-secondary btn-large" href="./" data-refused-home><span data-l10n-id="ui-back-to-start"></span></a>
+      </section>
+
+      <!-- A room on a site's own player (YouTube, Netflix…), started by the extension: it can only
+           be joined there, through the extension. -->
+      <section class="stage-card on-site" data-on-site data-entry-content data-l10n-aria-label="ui-join-on-the-site" hidden>
+        <p class="on-site-where" data-on-site-where></p>
+        <p class="hint" data-on-site-how><span data-l10n-id="invite-extension-instructions"></span></p>
+        <a class="btn btn-primary btn-large" href="https://github.com/temporaryfix/together-releases#install" target="_blank" rel="noopener" data-on-site-install><span data-l10n-id="ui-install-the-extension"></span></a>
+        <a class="quiet-link" target="_blank" rel="noopener" data-on-site-page><span data-l10n-id="ui-open-the-video"></span></a>
+      </section>
+    </div>
+  </main>
+
+  <!-- The room -->
+  <main id="room" class="screen room" tabindex="-1" data-l10n-aria-label="ui-together" hidden>
+    <div class="stage" data-stage>
+      <video class="video" playsinline preload="auto" data-video></video>
+
+      <header class="topbar chrome">
+        <div class="room-title">
+          <svg class="room-mark" aria-hidden="true"><use href="#mark"/></svg>
+          <span class="room-name" data-title></span>
+        </div>
+        <together-people><ul class="people" data-l10n-aria-label="ui-people-in-the-room" data-people></ul></together-people>
+
+      </header>
+
+      <!-- Maker-added context before and during playback; filled by the generated Core room view. -->
+      <section data-room-metadata hidden></section>
+
+      <div class="notice" role="status" data-mismatch hidden>
+        <svg class="icon notice-icon" aria-hidden="true"><use href="#i-alert"/></svg>
+        <div class="notice-body">
+          <p class="notice-title" data-mismatch-title></p>
+          <p class="notice-text" data-mismatch-text></p>
+        </div>
+        <button class="btn btn-icon btn-small" type="button" data-l10n-aria-label="ui-dismiss" data-mismatch-close>
+          <svg class="icon" aria-hidden="true"><use href="#i-close"/></svg>
+        </button>
+      </div>
+
+      <together-toasts><ol class="toasts" aria-live="polite" data-toasts></ol></together-toasts>
+
+      <div class="overlay" data-overlay hidden></div>
+      <div class="room-notice visually-hidden" role="status" aria-live="polite" aria-atomic="true" data-room-status></div>
+
+      <div class="start-status" data-start-control role="status" aria-live="polite" hidden>
+        <p class="start-heading" data-start-heading></p>
+        <p class="start-detail" data-start-detail hidden></p>
+        <button class="btn btn-secondary" type="button" data-start-cancel hidden data-l10n-id="start-cancel"></button>
+      </div>
+
+      <div class="controls chrome" data-controls>
+        <input class="scrubber" type="range" min="0" max="0" step="0.01" value="0" data-l10n-aria-label="ui-seek" data-scrubber>
+        <div class="controls-row">
+          <button class="btn btn-icon btn-play" type="button" data-l10n-aria-label="ui-play" data-l10n-title="ui-play-space" data-play>
+            <svg class="icon" aria-hidden="true"><use href="#i-play"/></svg>
+          </button>
+          <p class="time"><span data-current>0:00</span><span class="time-sep" hidden> / </span><span data-duration hidden></span></p>
+          <span class="spacer"></span>
+          <div class="volume">
+            <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-mute" data-l10n-title="ui-mute-m" data-mute>
+              <svg class="icon" aria-hidden="true"><use href="#i-volume"/></svg>
+            </button>
+            <input class="volume-slider" type="range" min="0" max="1" step="0.05" value="1" data-l10n-aria-label="ui-volume" data-volume>
+          </div>
+
+          <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-full-screen" data-l10n-title="ui-full-screen-f" data-fullscreen>
+            <svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg>
+          </button>
+        </div>
+      </div>
+        <div class="topbar-actions">
+          <button class="btn btn-secondary btn-small messages-toggle" type="button" data-messages aria-controls="room-messages" aria-expanded="false" data-l10n-aria-label="ui-messages"><svg class="icon" aria-hidden="true"><use href="#i-message"/></svg><span data-l10n-id="ui-messages"></span></button>
+          <button class="btn btn-primary" type="button" data-l10n-aria-label="ui-invite" data-invite popovertarget="invite-popover">
+            <svg class="icon" aria-hidden="true"><use href="#i-link"/></svg><span data-l10n-id="ui-invite"></span>
+          </button>
+
+        </div>
+
+      <div class="room-dock-wrap chrome" data-room-dock-wrap>
+        <together-dock data-room-dock>
+          <div data-room-primary hidden><button class="btn btn-primary" type="button" data-start-primary hidden></button></div>
+          <together-dock-row data-room-actions></together-dock-row>
+        </together-dock>
+      </div>
+      <div class="room-more-menu" data-room-more-menu popover>
+        <button class="btn btn-secondary" type="button" data-room-settings-open><span data-l10n-id="settings-title"></span></button>
+          <button class="btn btn-icon" type="button" data-l10n-aria-label="ui-leave" data-l10n-title="ui-leave" data-leave>
+            <svg class="icon" aria-hidden="true"><use href="#i-leave"/></svg><span data-l10n-id="ui-leave"></span>
+          </button>
+      </div>
+      <dialog class="room-settings" data-room-settings data-l10n-aria-label="settings-title">
+        <h2 data-l10n-id="settings-title"></h2>
+        <together-voice></together-voice>
+          <details class="developer-options" data-developer>
+            <summary class="quiet-link" data-l10n-id="settings-developer"></summary>
+            <label><input type="checkbox" data-timings><span data-l10n-id="ui-show-timings"></span></label>
+          </details>
+        <button class="btn btn-secondary" type="button" data-room-settings-close><span data-l10n-id="conversation-close"></span></button>
+      </dialog>
+
+    </div>
+
+    <div class="popover" id="invite-popover" popover data-invite-popover>
+      <h2 class="popover-title"><span data-l10n-id="ui-invite"></span></h2>
+      <together-invite qr-pixels="208">
+      <!-- The one invite every surface hands out: a link, and a QR code of the same link. -->
+      <div class="invite-qr" role="img" data-l10n-aria-label="ui-qr-code-of-the-invite-link" data-invite-qr></div>
+      <div class="copy-row">
+        <label class="visually-hidden" for="invite-link"><span data-l10n-id="ui-invite-link"></span></label>
+        <input id="invite-link" class="input input-mono" type="text" readonly data-invite-link>
+        <button class="btn btn-secondary" type="button" data-copy-link>
+          <svg class="icon" aria-hidden="true"><use href="#i-copy"/></svg><span data-l10n-id="ui-copy-link"></span>
+        </button>
+      </div>
+      </together-invite>
+      <p class="popover-text"><span data-l10n-id="ui-anyone-with-the-link-can-join"></span></p>
+      <p class="popover-text popover-faint"><span data-l10n-id="ui-in-a-terminal"></span> <code>together &lt;link&gt;</code></p>
+    </div>
+  </main>
+
+  <!-- Files dragged over the window: the whole window takes them. A pointer-only affordance; the
+       buttons that open a file do the same for everyone else. -->
+  <div class="drop" data-drop aria-hidden="true">
+    <div class="drop-body">
+      <svg class="drop-mark" viewBox="0 0 64 28">
+        <circle class="drop-you" cx="25" cy="14" r="11"/>
+        <circle class="drop-friend" cx="39" cy="14" r="10.25"/>
+      </svg>
+      <p class="drop-title" data-drop-title></p>
+    </div>
+  </div>
+
+  <noscript><p class="noscript">Together needs JavaScript and WebAssembly to run.</p></noscript>
+</body>
+</html>
