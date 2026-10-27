@@ -698,6 +698,11 @@ ui-messages = Messages
 conversation-close = Close messages
 conversation-unread = Messages, unread messages
 conversation-message = Message
+room-say-something = Say something
+person-pill-paused = Paused
+person-pill-paused-at = Paused at { $position }
+person-pill-played = Played
+person-pill-jumped-to = Jumped to { $position }
 conversation-send = Send
 conversation-write-on-phone = Write messages from the Together app on your phone.
 conversation-truncated = Earlier messages are no longer in this room’s history.
@@ -982,6 +987,7 @@ member-caption-away = Away
 member-caption-not-watching = Not watching here
 
 member-caption-behind-short = { $seconds } s behind
+member-caption-offset-number = { $seconds } s
 member-caption-ahead-short = { $seconds } s ahead
 
 # Separate supplied-state words for Reduce Motion/detail; optional captions stay independent.
@@ -1082,6 +1088,8 @@ plan-every-other-weekday = every other { $days }
 plan-source-link = Paste a link
 plan-source-stream = A stream
 plan-ends-none = No end
+home-recent-rooms = Recent
+home-recent-stopped-at = Stopped at { $time }
 
 tv-settings-explanation-name = Change the name saved for this TV.
 tv-settings-explanation-connections = Manage phone connections to this TV.
@@ -1090,3 +1098,8 @@ tv-settings-explanation-developer = Show developer controls in Together.
 tv-settings-explanation-remote = Turn remote testing on or off for this TV.
 tv-settings-explanation-apple-owners = Adjust developer timing and seek-step parameters.
 tv-settings-explanation-forget-lab = Remove the saved lab from this TV.
+
+live-clock-unavailable = Live clock unavailable. Waiting for the stream’s clock.
+# The QR contains the signed Plan link, rather than an automatic Room Join.
+tv-plan-scan = Scan to open the plan
+tv-plan-on-phone = Open this plan on your phone.

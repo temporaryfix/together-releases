@@ -99,14 +99,18 @@ export type RemoteCommand =
 | { type: "observeSource"; sourceEpoch: string }
 | { type: "play"; attempt: number }
 | { type: "pause" }
-| { type: "seek"; position: number }
+| { type: "seek"; position: number; provider?: YouTubeSeekBinding; sourceEpoch?: string }
 | { type: "rate"; rate: number };
 
 /** What a remote element reports, for `Session.playerInput`: a `reading` every 50 ms, and the rest
  *  as it happens. `ageMs` is how long ago it happened, on this page's clock. A reading with `ad`
  *  is of an ad the site is showing in the element; the room waits for it. */
+export interface YouTubeSeekBinding { epoch: string; instance: string; generation: number; before: number }
+export type ProviderEvidence =
+| ({ kind: "live"; after: number; itemBefore: number; itemAfter: number; position: number; itemEarliest: number; itemHead: number; head: number } & YouTubeSeekBinding)
+| { kind: "finite" | "unavailable"; instance: string; generation: number };
 export type PlayerInput =
-| { type: "reading"; sourceEpoch?: string; buffered?: { start: number; end: number } | null; position: number; paused: boolean; seeking: boolean; ended: boolean; readyState: number; duration: number | null; ad?: boolean; ageMs: number }
+| { type: "reading"; sourceEpoch?: string; buffered?: { start: number; end: number } | null; position: number; paused: boolean; seeking: boolean; ended: boolean; readyState: number; duration: number | null; ad?: boolean; ageMs: number; liveClock?: ProviderEvidence; clockUncertaintyUs?: number }
 | { type: "presentedFrame"; sourceEpoch: string; position: number; ageMs: number }
 | { type: "sourceLost"; sourceEpoch: string; ageMs: number }
 | { type: "signal"; signal: "seeked" | "waiting" | "stalled" | "canplay" | "playing" }
@@ -203,7 +207,7 @@ export type SessionEvent =
 | { type: "streaming"; owner: string; hash: string; title: string; size: number }
 | { type: "refused"; who: Person | null; reason: "newer" | "notMember" | "roomFull" | "other"; message: string }
 | { type: "program"; loading: boolean; offProgram: boolean; unsupported: boolean; message: string | null }
-| { type: "status"; engineSnapshot: import("../engine-view.js").EngineSnapshot; connection: RoomConnectionState; roomPeople: RoomPeople; away: boolean; interruption: InterruptionView | null; interruptionDeparted: string | null; me: Person; role: Role; following: Following; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; waiting: WaitingView }
+| { type: "status"; engineSnapshot: import("../engine-view.js").EngineSnapshot; connection: RoomConnectionState; roomPeople: RoomPeople; away: boolean; interruption: InterruptionView | null; interruptionDeparted: string | null; me: Person; role: Role; following: Following; peers: PeerView[]; offsetMs: number | null; sync: SyncBadge; position: number; paused: boolean; title: string; duration: number | null; waiting: WaitingView; liveDelayMs?: number | null }
 | { type: "playback"; blocked: boolean }
 | { type: "relayBlocked"; blocked: boolean }
 | { type: "stopped"; error: string | null; message: string };
@@ -406,6 +410,10 @@ export class Plan {
     occurrences(after_ms: string, limit: number): string;
     permissions(root_hmac: Uint8Array): string;
     personId(root_hmac: Uint8Array): string;
+    /**
+     * Local JPEG metadata only; no capture, endpoint, request or display grant.
+     */
+    static pictureReference(bytes: Uint8Array): string;
     presenceSnapshot(now_ms: string): string;
     replyFragments(): string;
     reply(root_hmac: Uint8Array, profile: string, going: boolean, previous?: string | null): PlanReply;
@@ -413,6 +421,11 @@ export class Plan {
     roomInvite(): string;
     snapshot(): string;
     summary(now_ms: string): string;
+    /**
+     * Recheck local/cache bytes against this actual held Plan before pixel decoding.
+     * Uint8Array length admission precedes copying into WASM; this creates no transport owner.
+     */
+    verifyPicture(bytes: Uint8Array): Uint8Array;
 }
 
 export class PlanReply {
@@ -827,6 +840,7 @@ export interface InitOutput {
     readonly plan_occurrences: (a: number, b: number, c: number, d: number, e: number) => void;
     readonly plan_permissions: (a: number, b: number, c: number, d: number) => void;
     readonly plan_personId: (a: number, b: number, c: number, d: number) => void;
+    readonly plan_pictureReference: (a: number, b: number) => void;
     readonly plan_presenceSnapshot: (a: number, b: number, c: number, d: number) => void;
     readonly plan_reply: (a: number, b: number, c: number, d: number, e: number, f: number, g: number, h: number, i: number) => void;
     readonly plan_replyFragments: (a: number, b: number) => void;
@@ -834,6 +848,7 @@ export interface InitOutput {
     readonly plan_roomInvite: (a: number, b: number) => void;
     readonly plan_snapshot: (a: number, b: number) => void;
     readonly plan_summary: (a: number, b: number, c: number, d: number) => void;
+    readonly plan_verifyPicture: (a: number, b: number, c: number) => void;
     readonly planreply_fragment: (a: number, b: number) => void;
     readonly planreply_merge: (a: number, b: number, c: number) => void;
     readonly planreply_snapshot: (a: number, b: number) => void;
@@ -900,17 +915,17 @@ export interface InitOutput {
     readonly voice_send: (a: number, b: number) => number;
     readonly voice_view: (a: number) => number;
     readonly ring_core_0_17_14__bn_mul_mont: (a: number, b: number, c: number, d: number, e: number, f: number) => void;
-    readonly __wasm_bindgen_func_elem_2006: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_28067: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_28069: (a: number, b: number, c: number, d: number) => void;
-    readonly __wasm_bindgen_func_elem_16390: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_19050: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_2005: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_20720: (a: number, b: number, c: number) => void;
-    readonly __wasm_bindgen_func_elem_18842: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_19936: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_20026: (a: number, b: number) => void;
-    readonly __wasm_bindgen_func_elem_27914: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_2044: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_28228: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_28230: (a: number, b: number, c: number, d: number) => void;
+    readonly __wasm_bindgen_func_elem_16551: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_19211: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_2043: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_20881: (a: number, b: number, c: number) => void;
+    readonly __wasm_bindgen_func_elem_19003: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_20097: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_20187: (a: number, b: number) => void;
+    readonly __wasm_bindgen_func_elem_28075: (a: number, b: number) => void;
     readonly __wbindgen_export: (a: number, b: number) => number;
     readonly __wbindgen_export2: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_export3: (a: number) => void;

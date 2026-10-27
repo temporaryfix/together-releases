@@ -581,6 +581,19 @@ export interface PlanAvailability {
 	remainingMs: string;
 }
 
+export enum PlanPictureFormat {
+	Jpeg = "jpeg",
+}
+
+/** The signed container claim. Pixel decoding remains the platform's responsibility. */
+export interface PlanPictureReference {
+	hash: string;
+	byteLength: number;
+	format: PlanPictureFormat;
+	width: number;
+	height: number;
+}
+
 export interface PlanLocalStart {
 	date: string;
 	time: string;
@@ -615,6 +628,7 @@ export interface PlanSourceView {
 }
 
 export interface PlanDraft {
+	picture?: PlanPictureReference | null;
 	title: string;
 	makerNotes?: string | null;
 	startsAtMs: string;
@@ -686,6 +700,7 @@ export enum PlanState {
 }
 
 export interface PlanView {
+	picture?: PlanPictureReference | null;
 	started?: PlanStartView | null;
 	version: number;
 	id: string;
